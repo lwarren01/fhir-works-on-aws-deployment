@@ -48,7 +48,7 @@ function cleanup(){
 cd $SOURCE_DIR
 echo In directory: $(pwd)
 echo Installing dependencies
-npm install -g serverless && npm install
+npm install yarn@1.22.5 && yarn install
 
 echo Using region: "$REGION"
 echo Adding provider.deploymentBucket to serverless.yaml
@@ -59,7 +59,7 @@ trap 'cleanup $(("$DEPLOYMENT_BUCKET_LINE" + 1))' EXIT
 
 SERVERLESS_OUTPUT_PATH=$DEPLOYMENT_DIR/.serverless/
 mkdir -p $SERVERLESS_OUTPUT_PATH # Put the output of sls package in this directory so it doesn't delete everything else that is already in the deployment folder
-sls package --region "$REGION" --package $SERVERLESS_OUTPUT_PATH
+npx serverless package --region "$REGION" --package $SERVERLESS_OUTPUT_PATH
 echo Package completed, modifying template
 
 cd $DEPLOYMENT_DIR
