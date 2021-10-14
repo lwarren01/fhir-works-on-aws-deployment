@@ -26,7 +26,7 @@ import escapeStringRegexp from 'escape-string-regexp';
 import { createAuthZConfig } from './authZConfig';
 import { loadImplementationGuides } from './implementationGuides/loadCompiledIGs';
 
-const { IS_OFFLINE, ENABLE_MULTI_TENANCY } = process.env;
+const { IS_OFFLINE } = process.env;
 
 const enableMultiTenancy = true;
 
