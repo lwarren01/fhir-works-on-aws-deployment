@@ -28,7 +28,7 @@ import { loadImplementationGuides } from './implementationGuides/loadCompiledIGs
 
 const { IS_OFFLINE } = process.env;
 
-const enableMultiTenancy = true;
+const enableMultiTenancy = false;
 
 // When running serverless offline, env vars are expressed as '[object Object]'
 // https://github.com/serverless/serverless/issues/7087
