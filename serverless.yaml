@@ -46,7 +46,8 @@ custom:
         to: './bulkExport/schema/${self:custom.patientCompartmentFileV4}'
       - from: 'compiledImplementationGuides/*'
         to: './'
-
+      - from: 'synthetics/metadata.js'
+        to: './synthetics/metadata.js'
 provider:
   name: aws
   region: us-west-2
@@ -222,6 +223,16 @@ functions:
       ELASTICSEARCH_DOMAIN_ENDPOINT: !Join ['', ['https://', !GetAtt ElasticSearchDomain.DomainEndpoint]]
       NUMBER_OF_SHARDS: !If [isDev, 1, 3] # 133 indices, one per resource types
 
+  uploadSyntheticsScripts:
+    timeout: 30
+    memorySize: 192
+    runtime: nodejs14.x
+    description: 'Upload synthetics scripts to s3'
+    role: UploadSyntheticsScriptsLambdaRole
+    handler: synthetics/uploadSyntheticsScriptsToS3.handler
+    disableLogs: true # needed to avoid race condition error "Resource of type 'AWS::Logs::LogGroup' already exists" since the custom resource lambda invocation may create the log group before CFN does
+    environment:
+      SYNTHETICS_SCRIPTS_BUCKET: !Ref SyntheticsBucket
 stepFunctions:
   stateMachines:
     BulkExportStateMachine: ${file(bulkExport/state-machine-definition.yaml)}
@@ -911,6 +922,7 @@ resources:
   - ${file(cloudformation/bulkExport.yaml)}
   - ${file(cloudformation/cognito.yaml)}
   - ${file(cloudformation/apiGateway.yaml)}
+  - ${file(cloudformation/synthetics.yaml)}
   - Outputs:
       FHIRBinaryBucket:
         Description: S3 Bucket for storing Binary Objects

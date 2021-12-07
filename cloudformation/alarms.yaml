@@ -686,3 +686,24 @@ Resources:
             Resource: !Ref FhirWorksAlarmSNSTopic
       Topics:
         - !Ref FhirWorksAlarmSNSTopic
+  # cloudwatch synthetic support
+  MetadataCanaryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when the ig synthetic canary call fails
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, MetadataPingCanaryFailedAlarm]]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: CanaryName
+          Value: !Join ['-', [!Ref Stage, metadata, ping]]
+      EvaluationPeriods: 1
+      MetricName: 'Failed'
+      Namespace: 'CloudWatchSynthetics'
+      Period: 900
+      Statistic: Maximum
+      Threshold: 0
+      TreatMissingData: notBreaching
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
