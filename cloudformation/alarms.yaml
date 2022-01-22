@@ -150,7 +150,7 @@ Resources:
           - id: W28
             reason: 'We want to explicitly create an alarm name'
     Properties:
-      AlarmDescription: Alarm when Api GW has more than 1 5xx errors; 3 times
+      AlarmDescription: Alarm when Api GW has more than 3 5xx errors; 3 times
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, ApiGateway5XXErrorAlarm]]
       ActionsEnabled: False
       ComparisonOperator: GreaterThanOrEqualToThreshold
@@ -179,7 +179,7 @@ Resources:
           - id: W28
             reason: 'We want to explicitly create an alarm name'
     Properties:
-      AlarmDescription: Alarm when Api GW has more than 1 4xx errors; 3 times
+      AlarmDescription: Alarm when Api GW has more than 5 4xx errors; 3 times
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, ApiGateway4XXErrorAlarm]]
       ActionsEnabled: False
       ComparisonOperator: GreaterThanOrEqualToThreshold
@@ -192,7 +192,7 @@ Resources:
       Namespace: AWS/ApiGateway
       Period: 300
       Statistic: Sum
-      Threshold: 5
+      Threshold: '${self:threshold_parameter}'
       TreatMissingData: notBreaching
       Unit: Count
       OKActions:

@@ -189,6 +189,7 @@ stage="dev"
 region="us-west-2"
 
 #Parse commandline args
+# threshold_parameter
 while [ "$1" != "" ]; do
     case $1 in
         -i | --issuerEndpoint )         shift
@@ -206,6 +207,10 @@ while [ "$1" != "" ]; do
         -r | --region )                 shift
                                         region=$1
                                         ;;
+        -tp | --threshold_parameter )    shift
+                                        threshold_parameter=$1
+                                        ;;
+
         -h | --help )                   usage
                                         exit
                                         ;;
@@ -268,6 +273,7 @@ echo "  OAuth2 API Endpoint: $oAuth2ApiEndpoint"
 echo "  Patient Picker Endpoint: $patientPickerEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
+echo "  threshold_parameter: $threshold_parameter"
 echo ""
 if ! `YesOrNo "Are these settings correct?"`; then
     echo ""
@@ -308,7 +314,7 @@ fi
 
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
-yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+yarn run serverless-deploy --region $region --stage $stage --threshold_parameter $threshold_parameter --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
 echo -e "Deployed Successfully.\n"
