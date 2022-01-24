@@ -13,8 +13,8 @@ custom:
   stage: ${opt:stage, self:provider.stage}
   region: ${opt:region, self:provider.region}
   # threshold_parameter: ${opt:threshold_parameter}
-  threshold_parameter: 8
-  issuerEndpoint: ${opt:issuerEndpoint}
+  # threshold_parameter: 8
+  issuerEndpoint: ${opt:threshold_parameter, 10}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
   patientPickerEndpoint: ${opt:patientPickerEndpoint}
   useHapiValidator: ${opt:useHapiValidator, 'false'}
