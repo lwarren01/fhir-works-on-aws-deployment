@@ -187,9 +187,13 @@ oAuth2ApiEndpoint="undefined"
 patientPickerEndpoint="undefined"
 stage="dev"
 region="us-west-2"
+lambda_latency_threshold=3000
+apigateway5xxerror_threshold=3
+apigateway4xxerror_threshold=5
+lambda_error_threshold=1
+DDBToESL_lambda_error_threshold=1
 
 #Parse commandline args
-# threshold_parameter
 while [ "$1" != "" ]; do
     case $1 in
         -i | --issuerEndpoint )         shift
@@ -207,10 +211,21 @@ while [ "$1" != "" ]; do
         -r | --region )                 shift
                                         region=$1
                                         ;;
-        -tp | --threshold_parameter )    shift
-                                        threshold_parameter=$1
+        -llt | --lambda_latency_threshold )    shift
+                                        lambda_latency_threshold=$1
                                         ;;
-
+        -a5et | --apigateway5xxerror_threshold )    shift
+                                        apigateway5xxerror_threshold=$1
+                                        ;;
+        -a4et | --apigateway4xxerror_threshold )    shift
+                                        apigateway4xxerror_threshold=$1
+                                        ;;
+        -let | --lambda_error_threshold )    shift
+                                        lambda_error_threshold=$1
+                                        ;;
+        -dlet | --DDBToESL_lambda_error_threshold )    shift
+                                        DDBToESL_lambda_error_threshold=$1
+                                        ;;                                                                                                                     
         -h | --help )                   usage
                                         exit
                                         ;;
@@ -273,7 +288,11 @@ echo "  OAuth2 API Endpoint: $oAuth2ApiEndpoint"
 echo "  Patient Picker Endpoint: $patientPickerEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
-echo "  threshold_parameter: $threshold_parameter"
+echo "  lambda_latency_threshold: $lambda_latency_threshold"
+echo "  apigateway5xxerror_threshold: $apigateway5xxerror_threshold"
+echo "  apigateway4xxerror_threshold: $apigateway4xxerror_threshold"
+echo "  lambda_error_threshold: $lambda_error_threshold"
+echo "  DDBToESL_lambda_error_threshold: $DDBToESL_lambda_error_threshold"
 echo ""
 if ! `YesOrNo "Are these settings correct?"`; then
     echo ""
@@ -314,7 +333,15 @@ fi
 
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
-yarn run serverless-deploy --region $region --stage $stage --threshold_parameter 9 --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+yarn run serverless-deploy --region $region --stage $stage \
+--lambda_latency_threshold $lambda_latency_threshold \
+--apigateway5xxerror_threshold $apigateway5xxerror_threshold \
+--apigateway4xxerror_threshold $apigateway4xxerror_threshold \
+--lambda_error_threshold $lambda_error_threshold \
+--DDBToESL_lambda_error_threshold $DDBToESL_lambda_error_threshold \
+--issuerEndpoint $issuerEndpoint \
+--oAuth2ApiEndpoint $oAuth2ApiEndpoint \
+--patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
 echo -e "Deployed Successfully.\n"
