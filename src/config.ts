@@ -73,8 +73,8 @@ const getAuthService = async () => {
 };
 
 const baseResources = fhirVersion === '4.0.1' ? BASE_R4_RESOURCES : BASE_STU3_RESOURCES;
-const dynamoDbDataService = new DynamoDbDataService(DynamoDb, false, { enableMultiTenancy });
-const dynamoDbBundleService = new DynamoDbBundleService(DynamoDb, undefined, undefined, {
+const dynamoDbDataService = new DynamoDbDataService(DynamoDb, true, { enableMultiTenancy });
+const dynamoDbBundleService = new DynamoDbBundleService(DynamoDb, true, undefined, {
     enableMultiTenancy,
 });
 
