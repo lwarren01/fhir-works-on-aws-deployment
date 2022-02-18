@@ -3,7 +3,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 #
 
-service: fhir-service-smart
+service: fhir-service${self:custom.serviceNameSuffix}
 
 custom:
   oldResourceTableName: 'resource-${self:custom.stage}'
@@ -26,6 +26,11 @@ custom:
   enableESHardDelete: ${opt:enableESHardDelete, 'false'}
   patientCompartmentFileV3: 'patientCompartmentSearchParams.3.0.2.json'
   patientCompartmentFileV4: 'patientCompartmentSearchParams.4.0.1.json'
+  serviceNameSuffix: ${env:SERVICE_NAME_SUFFIX, '-smart'}
+  cognitoRewriteEnabled: ${env:COGNITO_REWRITE_ENABLED, 'false'}
+  cognitoJWKUrl: ${env:COGNITO_JWK_URL, ''}
+  cognitoValidateOktaToken: ${env:COGNITO_VALIDATE_OKTA_TOKEN, ''}
+  cognitoUsername: ${env:COGNITO_USERNAME, ''}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -121,7 +126,10 @@ functions:
       EXPORT_STATE_MACHINE_ARN: !Ref BulkExportStateMachine
       PATIENT_COMPARTMENT_V3: ${self:custom.patientCompartmentFileV3}
       PATIENT_COMPARTMENT_V4: ${self:custom.patientCompartmentFileV4}
-
+      COGNITO_REWRITE_ENABLED: ${self.custom.cognitoRewriteEnabled}
+      COGNITO_JWK_URL: ${self.custom.COGNITO_JWK_URL}
+      COGNITO_VALIDATE_OKTA_TOKEN: ${self.custom.cognitoValidateOktaToken}
+      COGNITO_USERNAME: ${self.cognitoUsername}
   ddbToEs:
     timeout: 300
     runtime: nodejs14.x
