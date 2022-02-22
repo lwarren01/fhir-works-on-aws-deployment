@@ -26,7 +26,7 @@ custom:
   enableESHardDelete: ${opt:enableESHardDelete, 'false'}
   patientCompartmentFileV3: 'patientCompartmentSearchParams.3.0.2.json'
   patientCompartmentFileV4: 'patientCompartmentSearchParams.4.0.1.json'
-  serviceNameSuffix: ${env:SERVICE_NAME_SUFFIX, '-smart'}
+  serviceNameSuffix: ${env:SERVICE_NAME_SUFFIX, '-smart-'}
   cognitoRewriteEnabled: ${env:COGNITO_REWRITE_ENABLED, 'false'}
   cognitoJWKUrl: ${env:COGNITO_JWK_URL, ''}
   cognitoValidateOktaToken: ${env:COGNITO_VALIDATE_OKTA_TOKEN, ''}
@@ -55,7 +55,7 @@ provider:
   architecture: x86_64
   memorySize: 512
   logRetentionInDays: 3653 # 10 years
-  stackName: fhir-service${self.custom.serviceNameSuffix}-${self:custom.stage}
+  stackName: fhir-service${self:custom.serviceNameSuffix}${self:custom.stage}
   stackTags:
     FHIR_SERVICE: 'fhir-service-smart-${self:custom.region}-${self:custom.stage}'
   environment:
@@ -905,6 +905,7 @@ resources:
   - ${file(cloudformation/elasticsearch.yaml)}
   - ${file(cloudformation/bulkExport.yaml)}
   - ${file(cloudformation/synthetics.yaml)}
+  - ${file(cloudformation/cognito.yaml)}
   - Outputs:
       FHIRBinaryBucket:
         Description: S3 Bucket for storing Binary Objects
