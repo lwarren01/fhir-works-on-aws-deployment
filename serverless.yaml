@@ -54,6 +54,7 @@ provider:
   architecture: x86_64
   memorySize: 512
   logRetentionInDays: 3653 # 10 years
+  stackName: fhir-service${self.custom.serviceNameSuffix}-${self:custom.stage}
   stackTags:
     FHIR_SERVICE: 'fhir-service-smart-${self:custom.region}-${self:custom.stage}'
   environment:
