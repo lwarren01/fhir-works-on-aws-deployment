@@ -13,20 +13,19 @@ export const scopeRule: ScopeRule = {
     },
     user: {
         read: ['read', 'vread', 'search-type', 'search-system', 'history-instance', 'history-type', 'history-system'],
-        write: ['update', 'patch', 'create', 'transaction'],
+        write: ['update', 'patch', 'create', 'delete', 'transaction'],
     },
     system: {
-        // We are not enabling the system scope by default
-        read: [],
-        write: [],
+        read: ['read', 'vread', 'search-type', 'search-system', 'history-instance', 'history-type', 'history-system'],
+        write: ['update', 'patch', 'create', 'delete', 'transaction'],
     },
 };
 
-export function createAuthZConfig(
-    expectedAudValue: string,
+export async function createAuthZConfig(
+    expectedAudValue: string | RegExp,
     expectedIssValue: string,
     jwksEndpoint: string,
-): SMARTConfig {
+): Promise<SMARTConfig> {
     return {
         version: 1.0,
         scopeKey: 'scp',
