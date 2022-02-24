@@ -30,6 +30,7 @@ custom:
   cognitoRewriteEnabled: ${env:COGNITO_REWRITE_ENABLED, 'true'}
   cognitoValidateOktaToken: ${env:COGNITO_VALIDATE_OKTA_TOKEN, 'true'}
   cognitoUsername: ${env:COGNITO_USERNAME, ''}
+  enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -130,6 +131,7 @@ functions:
       COGNITO_JWK_URL: !Join ['', ['https://cognito-idp.', !Sub '${AWS::Region}.amazonaws.com/', !Ref UserPool, '/.well-known/jwks.json']]
       COGNITO_VALIDATE_OKTA_TOKEN: ${self.custom.cognitoValidateOktaToken}
       COGNITO_USERNAME: ${self.cognitoUsername}
+      ENABLE_DYNAMIC_HOST_NAME: ${self:custom.enableDynamicHostName}
 
   ddbToEs:
     timeout: 300
