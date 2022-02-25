@@ -26,6 +26,10 @@ custom:
   enableESHardDelete: ${opt:enableESHardDelete, 'false'}
   patientCompartmentFileV3: 'patientCompartmentSearchParams.3.0.2.json'
   patientCompartmentFileV4: 'patientCompartmentSearchParams.4.0.1.json'
+  serviceNameSuffix: ${env:SERVICE_NAME_SUFFIX, '-smart-'}
+  cognitoRewriteEnabled: ${env:COGNITO_REWRITE_ENABLED, 'true'}
+  cognitoValidateOktaToken: ${env:COGNITO_VALIDATE_OKTA_TOKEN, 'true'}
+  cognitoUsername: ${env:COGNITO_USERNAME, ''}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -49,6 +53,7 @@ provider:
   architecture: x86_64
   memorySize: 512
   logRetentionInDays: 3653 # 10 years
+  stackName: fhir-service${self:custom.serviceNameSuffix}${self:custom.stage}
   stackTags:
     FHIR_SERVICE: 'fhir-service-smart-${self:custom.region}-${self:custom.stage}'
   environment:
@@ -121,6 +126,10 @@ functions:
       EXPORT_STATE_MACHINE_ARN: !Ref BulkExportStateMachine
       PATIENT_COMPARTMENT_V3: ${self:custom.patientCompartmentFileV3}
       PATIENT_COMPARTMENT_V4: ${self:custom.patientCompartmentFileV4}
+      COGNITO_REWRITE_ENABLED: ${self.custom.cognitoRewriteEnabled}
+      COGNITO_JWK_URL: !Join ['', ['https://cognito-idp.', !Sub '${AWS::Region}.amazonaws.com/', !Ref UserPool, '/.well-known/jwks.json']]
+      COGNITO_VALIDATE_OKTA_TOKEN: ${self.custom.cognitoValidateOktaToken}
+      COGNITO_USERNAME: ${self.cognitoUsername}
 
   ddbToEs:
     timeout: 300
