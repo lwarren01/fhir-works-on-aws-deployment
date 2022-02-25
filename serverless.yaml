@@ -587,6 +587,11 @@ resources:
                       - 'ssm:GetParameter'
                     Resource:
                       - '*'
+                  - Effect: Allow
+                    Action:
+                      - 'ssm:GetParameters'
+                    Resource:
+                      - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${self:custom.stage}/*'
                   - !If
                     - isUsingHapiValidator
                     - Effect: Allow
