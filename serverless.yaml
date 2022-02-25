@@ -884,6 +884,7 @@ resources:
   - ${file(cloudformation/kms.yaml)}
   - ${file(cloudformation/elasticsearch.yaml)}
   - ${file(cloudformation/bulkExport.yaml)}
+  - ${file(cloudformation/cognito.yaml)}
   - Outputs:
       FHIRBinaryBucket:
         Description: S3 Bucket for storing Binary Objects
