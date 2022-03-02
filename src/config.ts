@@ -134,7 +134,7 @@ export const getFhirConfig = async (): Promise<FhirConfig> => ({
     },
     server: {
         url: apiUrl,
-    dynamicHostName: process.env.API_URL_DYNAMIC_HOST_NAME === 'true',
+        dynamicHostName: process.env.ENABLE_DYNAMIC_HOST_NAME === 'true',
     },
     validators,
     profile: {
