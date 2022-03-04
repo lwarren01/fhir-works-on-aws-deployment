@@ -111,7 +111,9 @@ const s3DataService = new S3DataService(dynamoDbDataService, fhirVersion, { enab
 export const getFhirConfig = async (): Promise<FhirConfig> => ({
     configVersion: 1.0,
     productInfo: {
-        orgName: 'Organization Name',
+        orgName: 'ResMed',
+        productTitle: 'Connected Health Platform',
+        productVersion: '0.3.0',
     },
     auth: {
         authorization: await getAuthService(),
