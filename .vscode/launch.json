@@ -1,0 +1,77 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach by Process ID",
+            "processId": "${command:PickProcess}",
+            "request": "attach",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "pwa-node",
+            "outFiles": ["${workspaceFolder}/lib/**/*.js"]
+        },
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Debug",
+            "program": "${workspaceRoot}/node_modules/serverless/bin/serverless",
+            "args": [
+                "offline",
+                "start",
+                "-s",
+                "dev"
+            ],
+            "internalConsoleOptions": "openOnSessionStart",
+            "outFiles": ["${workspaceFolder}/.webpack/**/*.js"],
+            "sourceMaps": true,
+            "env":{
+                "SLS_DEBUG":"*",
+                "ARCHIVE_CONFIG":"AuditEvent,60|Patient,120",
+                "AWS_PROFILE":"** SET ME **",
+                "API_URL":"http://localhost:9393",
+                "OFFLINE_BINARY_BUCKET":"** SET ME **",
+                "OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT":"** SET ME **",
+                "API_URL_DYNAMIC_HOST_NAME": "true"
+            },
+            "runtimeArgs": [
+                "--preserve-symlinks-main",
+                "--preserve-symlinks"
+            ],
+            "autoAttachChildProcesses": true,
+            "stopOnEntry": true,
+            
+        },
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Debug Tests",
+            "program": "${workspaceRoot}/node_modules/jest/bin/jest.js",
+            "args": [
+                "-i",
+                "--testPathPattern=src/*|ddbToFirehoseLambda"
+            ],
+            "internalConsoleOptions": "openOnSessionStart",
+            "env": {
+                "ARCHIVE_DELIVERY_STREAM_NAME": "test-stream-name"
+            }
+        },
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Debug create-postman-collection",
+            "program": "${workspaceFolder}/scripts/create-postman-collection.ts",
+            "args": [
+            ],
+            "internalConsoleOptions": "openOnSessionStart",
+            "preLaunchTask": "tsc: build - tsconfig.json",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js",
+                "!**/node_modules/**"
+            ]
+        }
+    ]
+}
