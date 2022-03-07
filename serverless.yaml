@@ -93,6 +93,8 @@ provider:
     restApi:
       format: '{"authorizer.claims.sub":"$context.authorizer.claims.sub","error.message":"$context.error.message","extendedRequestId":"$context.extendedRequestId","httpMethod":"$context.httpMethod","identity.sourceIp":"$context.identity.sourceIp","integration.error":"$context.integration.error","integration.integrationStatus":"$context.integration.integrationStatus","integration.latency":"$context.integration.latency","integration.requestId":"$context.integration.requestId","integration.status":"$context.integration.status","path":"$context.path","requestId":"$context.requestId","responseLatency":"$context.responseLatency","responseLength":"$context.responseLength","stage":"$context.stage","status":"$context.status"}'
       executionLogging: false
+      role: !GetAtt ApiGatewayRestApiCloudwatchLogsCustomRole.Arn
+      roleManagedExternally: true
   tracing:
     apiGateway: true
     lambda: true
@@ -866,9 +868,9 @@ resources:
                     iam:PolicyARN: 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
   - extensions:
       # Add custom permission boundary to role serverless uses for creating Cloudwatch publishing role
-      IamRoleCustomResourcesLambdaExecution:
-        Properties:
-          PermissionsBoundary: !Ref ServerlessLogsBoundary
+      #IamRoleCustomResourcesLambdaExecution:
+      #  Properties:
+      #    PermissionsBoundary: !Ref ServerlessLogsBoundary
       DdbToEsEventSourceMappingDynamodbResourceDynamoDBTableV2:
         Properties:
           DestinationConfig:

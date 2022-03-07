@@ -110,3 +110,30 @@ Resources:
       KeyId: !Ref ApiGatewayApiKey1
       KeyType: API_KEY
       UsagePlanId: !Ref FHIRServicePrivateUsagePlan
+
+
+
+  #####
+  # https://github.com/serverless/serverless/issues/9240
+  # From fwoa 3.x to 4.x new restrictions for the API gateway cloudwatch logs role were added
+  # specifically, https://github.com/awslabs/fhir-works-on-aws-deployment/commit/cc75ff762cf04621778a13f1673f7188d30bf59c
+  # which is good to lock down more but unfortunately serverless+cloudformation fail to orchestrate a successful update
+  # so, we need to manually do the update ourselves by creating a new role for API gateway's cloudwatch logs
+  # and set the serverless configuration to not manage the role and which role to use instead
+  # in a subsequent release we can then switch back to the out of the box fwoa definitions to create a new role
+  # with the added restrictions managed by fwoa serverless+derived cloudformation
+  #####
+  ApiGatewayRestApiCloudwatchLogsCustomRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Principal:
+                  Service: 'apigateway.amazonaws.com'
+                Action: 'sts:AssumeRole'
+      Description: "Custom API gateway role for to use with cloudwatch logs"
+      ManagedPolicyArns: 
+        - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
+      RoleName: !Join ['-', ['serverlessApiGatewayCloudWatchRoleCustom', !Ref Stage]]
