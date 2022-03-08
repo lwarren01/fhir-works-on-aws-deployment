@@ -14,7 +14,7 @@ Resources:
     Properties:
       AlarmDescription: Alarm when the Stream errors is more than 1 unit for 15 minutes out of the past 25 minutes. Streams do have retry logic
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, DDBToESLambdaErrorAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 5
       DatapointsToAlarm: 3
@@ -42,7 +42,7 @@ Resources:
     Properties:
       AlarmDescription: Alarm if the oldest record in the batch when processed was older than 1 minute.
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, DDBToESIteratorAgeAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
@@ -70,7 +70,7 @@ Resources:
     Properties:
       AlarmDescription: Alarm if queue depth increases to >= 1 messages
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, DDBToESDLQDepthAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
@@ -96,7 +96,7 @@ Resources:
     Properties:
       AlarmDescription: Alarm when Fhir errors is more than 1
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, FhirLambdaErrorAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 1
       MetricName: Errors
@@ -121,9 +121,9 @@ Resources:
           - id: W28
             reason: 'We want to explicitly create an alarm name'
     Properties:
-      AlarmDescription: Alarm when Fhir average latency is more than 2.5s; 2 times
+      AlarmDescription: Alarm when Fhir average latency is more than configured threshold; 2 times
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirLambdaLatencyAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 5
       DatapointsToAlarm: 2
@@ -150,9 +150,9 @@ Resources:
           - id: W28
             reason: 'We want to explicitly create an alarm name'
     Properties:
-      AlarmDescription: Alarm when Api GW has more than 1 5xx errors; 3 times
+      AlarmDescription: Alarm when Api GW has more than configured threshold of 5xx errors; 3 times
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, ApiGateway5XXErrorAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 5
       DatapointsToAlarm: 3
@@ -179,9 +179,9 @@ Resources:
           - id: W28
             reason: 'We want to explicitly create an alarm name'
     Properties:
-      AlarmDescription: Alarm when Api GW has more than 1 4xx errors; 3 times
+      AlarmDescription: Alarm when Api GW has more than configured threshold of 4xx errors; 3 times
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, ApiGateway4XXErrorAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 5
       DatapointsToAlarm: 3
@@ -208,20 +208,20 @@ Resources:
           - id: W28
             reason: 'We want to explicitly create an alarm name'
     Properties:
-      AlarmDescription: Alarm when Api GW average latency is more than 3s; 2 times
-      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, ApiGatewayLatencyAlarm]]
-      ActionsEnabled: False
+      AlarmDescription: Alarm when Api GW request average latency exceeds configured threshold; 3 times
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, ApiGatewayLatencyAlarm]]
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 5
-      DatapointsToAlarm: 2
+      DatapointsToAlarm: 3
       MetricName: Latency
       Dimensions:
         - Name: ApiName
           Value: !Join ['-', [!Ref Stage, '${self:service}']]
       Namespace: AWS/ApiGateway
-      Period: 60
+      Period: 300
       Statistic: Average
-      Threshold: 3000
+      Threshold: ${self:custom.apigatewayLatencyThreshold}
       TreatMissingData: notBreaching
       Unit: Milliseconds
       OKActions:
@@ -238,6 +238,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, FhirESClusterStatusRedAlarm]]
       AlarmDescription: 'Primary and replica shards of at least one index are not allocated to nodes in a cluster.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -266,6 +267,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterStatusYellowAlarm]]
       AlarmDescription: 'Replica shards for at least one index are not allocated to 2 nodes in a cluster.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -293,6 +295,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, FhirESClusterCPUUtilAlarm]]
       AlarmDescription: 'Average CPU utilization over last 10 minutes too high.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -320,6 +323,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterMasterCPUUtilAlarm]]
       AlarmDescription: 'Average CPU utilization over last 10 minutes too high.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -346,6 +350,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterFreeStorageSpaceTooLowAlarm]]
       AlarmDescription: 'Cluster is running out of storage space.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: LessThanThreshold
       Dimensions:
         - Name: ClientId
@@ -372,6 +377,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterIndexWritesBlockedTooHighAlarm]]
       AlarmDescription: 'Cluster is blocking incoming write requests.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -398,6 +404,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterJVMMemoryAlarm]]
       AlarmDescription: 'Average JVM memory pressure over last 10 minutes too high.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -425,6 +432,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterMasterJVMMemoryAlarm]]
       AlarmDescription: 'Average JVM memory pressure over last 10 minutes too high.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -452,6 +460,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterMasterNotReachableFromNodeAlarm]]
       AlarmDescription: 'Master node stopped or not reachable. Usually the result of a network connectivity issue or AWS dependency problem.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: LessThanThreshold
       Dimensions:
         - Name: ClientId
@@ -479,6 +488,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterSnapshotFailureAlarm]]
       AlarmDescription: 'No automated snapshot was taken for the domain in the previous 36 hours.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -506,6 +516,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, FhirESClusterKibanaAlarm]]
       AlarmDescription: 'Kibana is inaccessible.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: LessThanThreshold
       Dimensions:
         - Name: ClientId
@@ -533,6 +544,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, FhirESClusterKMSErrorAlarm]]
       AlarmDescription: 'KMS customer master key used to encrypt data at rest has been disabled.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -559,6 +571,7 @@ Resources:
     Properties:
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, FhirESClusterKMSInaccessibleAlarm]]
       AlarmDescription: 'KMS customer master key used to encrypt data at rest has been deleted or revoked its grants to Amazon ES.'
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: ClientId
@@ -580,6 +593,13 @@ Resources:
     Properties:
       DisplayName: !Join ['-', [FhirSolution, !Ref Stage, cloudwatch, alarm, topic]]
       KmsMasterKeyId: !Ref SnsKMSKey
+  FhirWorksAlarmSNSTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: isAlarmSubscriptionEnabled
+    Properties:
+      TopicArn: !Ref FhirWorksAlarmSNSTopic
+      Endpoint: ${self:custom.alarmSubscriptionEndpoint}
+      Protocol: https
   FhirWorksAlarmSNSTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     DependsOn: FhirWorksAlarmSNSTopic

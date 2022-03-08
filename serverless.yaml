@@ -12,11 +12,13 @@ custom:
   exportRequestTableJobStatusIndex: 'jobStatus-index'
   stage: ${opt:stage, self:provider.stage}
   region: ${opt:region, self:provider.region}
-  lambdaLatencyThreshold: ${env:lambdaLatencyThreshold}
-  apigatewayServerErrorThreshold: ${env:apigatewayServerErrorThreshold}
-  apigatewayClientErrorThreshold: ${env:apigatewayClientErrorThreshold}
-  lambdaErrorThreshold: ${env:lambdaErrorThreshold}
-  ddbToESLambdaErrorThreshold: ${env:ddbToESLambdaErrorThreshold}
+  lambdaLatencyThreshold: ${env:LAMBDA_LATENCY_THRESHOLD}
+  apigatewayLatencyThreshold: ${env:APIGATEWAY_LATENCY_THRESHOLD}
+  apigatewayServerErrorThreshold: ${env:APIGATEWAY_SERVER_ERROR_THRESHOLD}
+  apigatewayClientErrorThreshold: ${env:APIGATEWAY_CLIENT_ERROR_THRESHOLD}
+  lambdaErrorThreshold: ${env:LAMBDA_ERROR_THRESHOLD}
+  ddbToESLambdaErrorThreshold: ${env:DDB_TO_ES_LAMBDA_ERROR_THRESHOLD}
+  alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
   patientPickerEndpoint: ${opt:patientPickerEndpoint}
@@ -259,6 +261,7 @@ resources:
       isNotDev: !Not [Condition: isDev]
       isUsingHapiValidator: !Equals [!Ref UseHapiValidator, 'true']
       isMultiTenancyEnabled: !Equals [!Ref EnableMultiTenancy, 'true']
+      isAlarmSubscriptionEnabled: !Not [!Equals ['${self:custom.alarmSubscriptionEndpoint}', '']]
   - Mappings:
       # For the most up to date ec2 types see: https://aws.amazon.com/opensearch-service/pricing/
       RegionMap:
