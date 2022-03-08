@@ -195,6 +195,7 @@ alarmSubscriptionEndpoint=
 stage="dev"
 region="us-west-2"
 lambdaLatencyThreshold=3000
+apigatewayMetricsEnabled=false
 apigatewayLatencyThreshold=500
 apigatewayServerErrorThreshold=3
 apigatewayClientErrorThreshold=5
@@ -224,6 +225,9 @@ while [ "$1" != "" ]; do
                                                     ;;
         --lambdaLatencyThreshold )                  shift
                                                     lambdaLatencyThreshold=$1
+                                                    ;;
+        --apigatewayMetricsEnabled )                shift
+                                                    apigatewayMetricsEnabled=$1
                                                     ;;
         --apigatewayLatencyThreshold )              shift
                                                     apigatewayLatencyThreshold=$1
@@ -304,6 +308,7 @@ echo "  Alarm Subscription Endpoint: $alarmSubscriptionEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
 echo "  lambdaLatencyThreshold: $lambdaLatencyThreshold"
+echo "  apigatewayMetricsEnabled: $apigatewayMetricsEnabled"
 echo "  apigatewayLatencyThreshold: $apigatewayLatencyThreshold"
 echo "  apigatewayServerErrorThreshold: $apigatewayServerErrorThreshold"
 echo "  apigatewayClientErrorThreshold: $apigatewayClientErrorThreshold"
@@ -356,6 +361,7 @@ APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
 LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
 DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
 ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
 yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.

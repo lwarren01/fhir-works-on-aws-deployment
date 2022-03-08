@@ -19,6 +19,7 @@ custom:
   lambdaErrorThreshold: ${env:LAMBDA_ERROR_THRESHOLD}
   ddbToESLambdaErrorThreshold: ${env:DDB_TO_ES_LAMBDA_ERROR_THRESHOLD}
   alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT}
+  apigatewayMetricsEnabled: ${env:APIGATEWAY_METRICS_ENABLED, 'false'}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
   patientPickerEndpoint: ${opt:patientPickerEndpoint}
@@ -76,6 +77,8 @@ provider:
     ENABLE_MULTI_TENANCY: !Ref EnableMultiTenancy
     LOG_LEVEL: '${self:custom.logLevel}'
     AWS_XRAY_CONTEXT_MISSING: 'IGNORE_ERROR'
+  apiGateway:
+    metrics: ${self:custom.apigatewayMetricsEnabled}
   apiKeys:
     - name: 'developer-key-${self:custom.stage}' # Full name must be known at package-time
       description: Key for developer to access the FHIR Api
