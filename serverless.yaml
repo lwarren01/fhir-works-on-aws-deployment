@@ -132,7 +132,7 @@ functions:
       PATIENT_COMPARTMENT_V3: ${self:custom.patientCompartmentFileV3}
       PATIENT_COMPARTMENT_V4: ${self:custom.patientCompartmentFileV4}
       COGNITO_REWRITE_ENABLED: ${self:custom.cognitoRewriteEnabled}
-      COGNITO_JWK_URL: !Join ['', ['https://cognito-idp.', !Sub '${AWS::Region}.amazonaws.com/', !Ref UserPool, '/.well-known/jwks.json']]
+      COGNITO_JWK_URL: !Join ['', ['https://cognito-idp.', !Sub '${AWS::Region}.amazonaws.com/', !Ref UserPool]]
       COGNITO_VALIDATE_OKTA_TOKEN: ${self:custom.cognitoValidateOktaToken}
       COGNITO_USERNAME: ${self:custom.cognitoUsername}
       ENABLE_DYNAMIC_HOST_NAME: ${self:custom.enableDynamicHostName}
