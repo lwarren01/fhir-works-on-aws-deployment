@@ -12,13 +12,13 @@ custom:
   exportRequestTableJobStatusIndex: 'jobStatus-index'
   stage: ${opt:stage, self:provider.stage}
   region: ${opt:region, self:provider.region}
-  lambdaLatencyThreshold: ${env:LAMBDA_LATENCY_THRESHOLD}
-  apigatewayLatencyThreshold: ${env:APIGATEWAY_LATENCY_THRESHOLD}
-  apigatewayServerErrorThreshold: ${env:APIGATEWAY_SERVER_ERROR_THRESHOLD}
-  apigatewayClientErrorThreshold: ${env:APIGATEWAY_CLIENT_ERROR_THRESHOLD}
-  lambdaErrorThreshold: ${env:LAMBDA_ERROR_THRESHOLD}
-  ddbToESLambdaErrorThreshold: ${env:DDB_TO_ES_LAMBDA_ERROR_THRESHOLD}
-  alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT}
+  lambdaLatencyThreshold: ${env:LAMBDA_LATENCY_THRESHOLD, '3000'}
+  apigatewayLatencyThreshold: ${env:APIGATEWAY_LATENCY_THRESHOLD, '500'}
+  apigatewayServerErrorThreshold: ${env:APIGATEWAY_SERVER_ERROR_THRESHOLD, '3'}
+  apigatewayClientErrorThreshold: ${env:APIGATEWAY_CLIENT_ERROR_THRESHOLD, '5'}
+  lambdaErrorThreshold: ${env:LAMBDA_ERROR_THRESHOLD, '1'}
+  ddbToESLambdaErrorThreshold: ${env:DDB_TO_ES_LAMBDA_ERROR_THRESHOLD, '1'}
+  alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT, ''}
   apigatewayMetricsEnabled: ${env:APIGATEWAY_METRICS_ENABLED, 'false'}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
