@@ -113,7 +113,7 @@ export const getFhirConfig = async (): Promise<FhirConfig> => ({
     productInfo: {
         orgName: 'ResMed',
         productTitle: 'Connected Health Platform',
-        productVersion: '0.3.0',
+        productVersion: '0.9.10',
     },
     auth: {
         authorization: await getAuthService(),
