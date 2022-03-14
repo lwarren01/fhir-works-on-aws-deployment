@@ -17,7 +17,7 @@ custom:
   apigatewayClientErrorThreshold: ${env:apigatewayClientErrorThreshold}
   lambdaErrorThreshold: ${env:lambdaErrorThreshold}
   ddbToESLambdaErrorThreshold: ${env:ddbToESLambdaErrorThreshold}
-  archiveConfig: ${env:archiveConfig, ''}
+  archiveConfig: ${env:archiveConfig, 'AuditEvent,15778476|Patient,94670856'}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
   patientPickerEndpoint: ${opt:patientPickerEndpoint}

@@ -28,7 +28,6 @@ function usage(){
     echo "    --apigatewayClientErrorThreshold: API gateway 4xxerror threshold (Default: 5)"
     echo "    --lambdaErrorThreshold: lambda error latency threshold (Default: 1)"
     echo "    --ddbToESLambdaErrorThreshold: DDBToES lambda error threshold (Default: 1)"
-    echo "    --archiveConfig: archive config for specific resources. Format: resource1,ttl|resource2,ttl (Default: AuditEvent,15780000)"
     echo "    --help (-h): Displays this message"
     echo ""
     echo ""
@@ -198,7 +197,6 @@ apigatewayServerErrorThreshold=3
 apigatewayClientErrorThreshold=5
 lambdaErrorThreshold=1
 ddbToESLambdaErrorThreshold=1
-archiveConfig="AuditEvent,15778476|Patient,94670856"
 
 #Parse commandline args
 while [ "$1" != "" ]; do
@@ -232,10 +230,7 @@ while [ "$1" != "" ]; do
                                                     ;;
         --ddbToESLambdaErrorThreshold )             shift
                                                     ddbToESLambdaErrorThreshold=$1
-                                                    ;;
-        --archiveConfig )                           shift
-                                                    archiveConfig=$1
-                                                    ;;                                     
+                                                    ;;                                    
         -h | --help )                               usage
                                                     exit
                                                     ;;
@@ -303,7 +298,6 @@ echo "  apigatewayServerErrorThreshold: $apigatewayServerErrorThreshold"
 echo "  apigatewayClientErrorThreshold: $apigatewayClientErrorThreshold"
 echo "  lambdaErrorThreshold: $lambdaErrorThreshold"
 echo "  ddbToESLambdaErrorThreshold: $ddbToESLambdaErrorThreshold"
-echo "  archiveConfig: $archiveConfig"
 echo ""
 if ! `YesOrNo "Are these settings correct?"`; then
     echo ""
@@ -349,7 +343,6 @@ apigatewayServerErrorThreshold=$apigatewayServerErrorThreshold \
 apigatewayClientErrorThreshold=$apigatewayClientErrorThreshold \
 lambdaErrorThreshold=$lambdaErrorThreshold \
 ddbToESLambdaErrorThreshold=$ddbToESLambdaErrorThreshold \
-archiveConfig=$archiveConfig \
 yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
