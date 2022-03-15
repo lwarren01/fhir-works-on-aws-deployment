@@ -1,5 +1,6 @@
 import AWS from 'aws-sdk';
 import _ from 'lodash';
+import type { BatchStatementRequest } from 'aws-sdk/clients/dynamodb';
 
 const TTL_FIELD_NAME = '_ttlInSeconds';
 const DEFAULT_BATCH_SIZE = 10;
@@ -15,11 +16,10 @@ const TABLE_NAME = process.env.RESOURCE_TABLE || '';
 // }
 
 function getQueryStatement(record: any): string {
-    const id = record.dynamodb.Keys.id.S;
-    return `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${id}'`;
+    return `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${record.dynamodb.Keys.id.S}'`;
 }
 
-async function runStatements(statements: any) {
+async function runStatements(statements: BatchStatementRequest[]) {
     const dynamodb = new AWS.DynamoDB();
     const chunks = _.chunk(statements, BATCH_SIZE);
     const promises = chunks.map((chunk) =>
@@ -54,8 +54,8 @@ async function updateRecords(records: any[], ttlsInSeconds: Map<string, number>)
         return;
     }
 
-    const statements = _.uniq(records.map((record) => getQueryStatement(record))).map((Statement) => {
-        return { Statement };
+    const statements = _.uniq(records.map((record) => getQueryStatement(record))).map((statement) => {
+        return { Statement: statement };
     });
 
     const results = await runStatements(statements);
