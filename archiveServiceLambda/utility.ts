@@ -41,6 +41,13 @@ function filterRemovedRecordsFromTTL(records: any[]): any[] {
             record.userIdentity.principalId === 'dynamodb.amazonaws.com',
     );
 }
+/**
+ * return true if two images are the same except ttl field,
+ * otherwise return false.
+ */
+function isEqualExceptTTL(image1: any, image2: any): boolean {
+    return _.isEqual(_.omit(image1, [dynamodb.TTL_FIELD_NAME]), _.omit(image2, [dynamodb.TTL_FIELD_NAME]));
+}
 
 /**
  * returns a new array that only contains records that need to be updated with TTL field
@@ -55,12 +62,7 @@ function filterRecordsNeedUpdateTTL(records: any[], ttlsInSeconds: Map<string, n
             }
 
             if (record.eventName === 'MODIFY' && ['AVAILABLE', 'DELETED'].includes(documentStatus)) {
-                const onlyTtlChange = _.isEqual(
-                    _.omit(record.dynamodb.OldImage, [dynamodb.TTL_FIELD_NAME]),
-                    _.omit(record.dynamodb.NewImage, [dynamodb.TTL_FIELD_NAME]),
-                );
-
-                if (onlyTtlChange) {
+                if (isEqualExceptTTL(record.dynamodb.OldImage, record.dynamodb.NewImage)) {
                     // this update is triggered by this lambda function.
                     // return false in oder to avoid infinite loop
                     return false;
@@ -74,4 +76,9 @@ function filterRecordsNeedUpdateTTL(records: any[], ttlsInSeconds: Map<string, n
     });
 }
 
-export default { parseArchiveConfig, filterRemovedRecordsFromTTL, filterRecordsNeedUpdateTTL };
+export default {
+    parseArchiveConfig,
+    filterRemovedRecordsFromTTL,
+    filterRecordsNeedUpdateTTL,
+    isEqualExceptTTL,
+};

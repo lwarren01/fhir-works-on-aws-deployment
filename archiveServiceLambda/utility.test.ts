@@ -1,5 +1,6 @@
 import utility from './utility';
 import dynamodb from './dynamodb';
+import testHelper from './testHelper';
 
 describe('parse environment variable ARCHIVE_CONFIG', () => {
     test('archive config is not defined', () => {
@@ -286,5 +287,31 @@ describe('filter records that needs to update TTL field', () => {
         ];
 
         expect(utility.filterRecordsNeedUpdateTTL(records, DEFAULT_TTL_IN_SECONDS)).toEqual([]);
+    });
+});
+
+describe('isEqualExceptTTL', () => {
+    test('old and new images are the same', () => {
+        const oldImage = testHelper.generateImage();
+        const newImage = testHelper.generateImage();
+        expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(true);
+    });
+
+    test('new image has TTL field. old image does not', () => {
+        const oldImage = testHelper.generateImage();
+        const newImage = testHelper.generateImageWithTTL(100);
+        expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(true);
+    });
+
+    test('two images have different TTL', () => {
+        const oldImage = testHelper.generateImageWithTTL(100);
+        const newImage = testHelper.generateImageWithTTL(200);
+        expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(true);
+    });
+
+    test('two images have different cities', () => {
+        const oldImage = testHelper.generateImageWithCity(['Halifax']);
+        const newImage = testHelper.generateImageWithCity(['Toronto']);
+        expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(false);
     });
 });
