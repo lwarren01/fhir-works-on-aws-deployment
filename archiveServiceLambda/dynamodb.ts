@@ -18,7 +18,7 @@ const TABLE_NAME = process.env.RESOURCE_TABLE || '';
 function getQueryStatements(records: any[]): BatchStatementRequest[] {
     // we need to query previous versions only when the record event type is MODIFY and vid is greater than 2
     const statements: string[] = records
-        .filter((record) => record.eventName === 'MODIFY' && record.dynamodb.keys.vid.N > 2)
+        .filter((record) => record.eventName === 'MODIFY' && record.dynamodb.keys?.vid.N > 2)
         .map((record) => `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${record.dynamodb.Keys.id.S}'`);
 
     return _.uniq(statements).map((statement) => {
@@ -66,10 +66,10 @@ async function updateRecords(records: any[], ttlsInSeconds: Map<string, number>)
         return;
     }
 
+    console.log('records', JSON.stringify(records, null, 2));
     const results = await runStatements(getQueryStatements(records));
-
-    console.log(JSON.stringify(ttlsInSeconds, null, 2));
-    console.log(JSON.stringify(results, null, 2));
+    console.log('ttlsInSeconds', JSON.stringify(ttlsInSeconds, null, 2));
+    console.log('results', JSON.stringify(results, null, 2));
 }
 
 export default { TTL_FIELD_NAME, updateRecords };
