@@ -72,6 +72,7 @@
     "serverless": "2.64.1",
     "serverless-bundle": "^4.4.0",
     "serverless-offline": "^8.2.0",
+    "serverless-random-gateway-deployment-id": "^1.0.1",
     "serverless-step-functions": "^3.1.1",
     "sinon": "^9.0.2",
     "tmp-promise": "^3.0.2",

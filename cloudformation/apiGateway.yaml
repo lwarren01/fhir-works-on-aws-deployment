@@ -27,7 +27,7 @@ Resources:
             Action: 'execute-api:Invoke'
             Resource: 'execute-api:/*/*/*'
   
-  FHIRServiceStageDeployment2:
+  FHIRServiceStageDeployment:
     Type: AWS::ApiGateway::Deployment
     Condition: isUsingPrivateApi
     DependsOn:

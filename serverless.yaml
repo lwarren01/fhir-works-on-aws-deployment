@@ -992,3 +992,4 @@ plugins:
   - serverless-step-functions
   - serverless-bundle
   - serverless-offline
+  - serverless-random-gateway-deployment-id
