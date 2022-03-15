@@ -7,21 +7,22 @@ const DEFAULT_BATCH_SIZE = 10;
 const BATCH_SIZE = parseInt(process.env.DYNAMODB_BATCH_SIZE || DEFAULT_BATCH_SIZE.toString(), 10);
 const TABLE_NAME = process.env.RESOURCE_TABLE || '';
 
-// function getStatement(record: any, ttlsInSeconds: Map<string, number>): string {
-//     const resourceType = record.dynamodb.NewImage.resourceType.S;
-//     const ttl = Math.floor(Date.now() / 1000) + ttlsInSeconds.get(resourceType)!;
-//     const id = record.dynamodb.Keys.id.S;
-//     const vid = record.dynamodb.Keys.vid.N;
-//     return `UPDATE "${TABLE_NAME}" SET _ttlInSeconds = ${ttl} WHERE id = '${id}' AND vid = ${vid}`;
-// }
+function getStatements(records: any[], ttlsInSeconds: Map<string, number>): BatchStatementRequest[] {
+    const statements = new Set<string>();
+    const now = Math.floor(Date.now() / 1000);
 
-function getQueryStatements(records: any[]): BatchStatementRequest[] {
-    // we need to query previous versions only when the record event type is MODIFY and vid is greater than 2
-    const statements: string[] = records
-        .filter((record) => record.eventName === 'MODIFY' && record.dynamodb.Keys.vid.N > 2)
-        .map((record) => `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${record.dynamodb.Keys.id.S}'`);
+    records.forEach((record) => {
+        const resourceType = record.dynamodb.NewImage.resourceType.S;
+        const ttl = now + ttlsInSeconds.get(resourceType)!;
+        const id = record.dynamodb.Keys.id.S;
+        const vid = record.dynamodb.Keys.vid.N;
 
-    return _.uniq(statements).map((statement) => {
+        for (let i = 1; i <= vid; i += 1) {
+            statements.add(`UPDATE "${TABLE_NAME}" SET _ttlInSeconds = ${ttl} WHERE "id" = '${id}' AND "vid" = ${i}`);
+        }
+    });
+
+    return Array.from(statements).map((statement) => {
         return { Statement: statement };
     });
 }
@@ -67,8 +68,7 @@ async function updateRecords(records: any[], ttlsInSeconds: Map<string, number>)
     }
 
     console.log('records', JSON.stringify(records, null, 2));
-    const results = await runStatements(getQueryStatements(records));
-    console.log('ttlsInSeconds', JSON.stringify(ttlsInSeconds, null, 2));
+    const results = await runStatements(getStatements(records, ttlsInSeconds));
     console.log('results', JSON.stringify(results, null, 2));
 }
 
