@@ -15,8 +15,14 @@ const TABLE_NAME = process.env.RESOURCE_TABLE || '';
 //     return `UPDATE "${TABLE_NAME}" SET _ttlInSeconds = ${ttl} WHERE id = '${id}' AND vid = ${vid}`;
 // }
 
-function getQueryStatement(record: any): string {
-    return `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${record.dynamodb.Keys.id.S}'`;
+function getQueryStatements(records: any[]): BatchStatementRequest[] {
+    const statements: string[] = records
+        .filter((record) => record.eventName === 'MODIFY')
+        .map((record) => `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${record.dynamodb.Keys.id.S}'`);
+
+    return _.uniq(statements).map((statement) => {
+        return { Statement: statement };
+    });
 }
 
 async function runStatements(statements: BatchStatementRequest[]) {
@@ -54,14 +60,10 @@ async function updateRecords(records: any[], ttlsInSeconds: Map<string, number>)
         return;
     }
 
-    const statements = _.uniq(records.map((record) => getQueryStatement(record))).map((statement) => {
-        return { Statement: statement };
-    });
+    const results = await runStatements(getQueryStatements(records));
 
-    const results = await runStatements(statements);
-
-    console.log(ttlsInSeconds);
-    console.log(results);
+    console.log(JSON.stringify(ttlsInSeconds, null, 2));
+    console.log(JSON.stringify(results, null, 2));
 }
 
 export default { TTL_FIELD_NAME, updateRecords };
