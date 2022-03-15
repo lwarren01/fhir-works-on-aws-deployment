@@ -26,8 +26,12 @@ function getQueryStatements(records: any[]): BatchStatementRequest[] {
     });
 }
 
-async function runStatements(statements: BatchStatementRequest[]) {
+async function runStatements(statements: BatchStatementRequest[]): Promise<any[]> {
     console.log(`statements: ${JSON.stringify(statements, null, 2)}`);
+    if (statements.length === 0) {
+        return [];
+    }
+
     const dynamodb = new AWS.DynamoDB();
     const chunks = _.chunk(statements, BATCH_SIZE);
     const promises = chunks.map((chunk) =>
