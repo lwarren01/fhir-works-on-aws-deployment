@@ -16,8 +16,9 @@ const TABLE_NAME = process.env.RESOURCE_TABLE || '';
 // }
 
 function getQueryStatements(records: any[]): BatchStatementRequest[] {
+    // we need to query previous versions only when the record event type is MODIFY and vid is greater than 2
     const statements: string[] = records
-        .filter((record) => record.eventName === 'MODIFY')
+        .filter((record) => record.eventName === 'MODIFY' && record.dynamodb.keys.vid.N > 2)
         .map((record) => `SELECT * FROM "${TABLE_NAME}" WHERE "id" = '${record.dynamodb.Keys.id.S}'`);
 
     return _.uniq(statements).map((statement) => {
@@ -26,6 +27,7 @@ function getQueryStatements(records: any[]): BatchStatementRequest[] {
 }
 
 async function runStatements(statements: BatchStatementRequest[]) {
+    console.log(`statements: ${JSON.stringify(statements, null, 2)}`);
     const dynamodb = new AWS.DynamoDB();
     const chunks = _.chunk(statements, BATCH_SIZE);
     const promises = chunks.map((chunk) =>
