@@ -90,6 +90,7 @@ Resources:
 
   FHIRServicePrivateLambdaPermission:
     Type: AWS::Lambda::Permission
+    Condition: isUsingPrivateApi
     Properties:
       FunctionName: !Join
         - ':'

@@ -17,6 +17,7 @@ custom:
   apigatewayClientErrorThreshold: ${env:apigatewayClientErrorThreshold}
   lambdaErrorThreshold: ${env:lambdaErrorThreshold}
   ddbToESLambdaErrorThreshold: ${env:ddbToESLambdaErrorThreshold}
+  archiveConfig: ${env:archiveConfig, 'AuditEvent,15778476|Patient,94670856'}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
   patientPickerEndpoint: ${opt:patientPickerEndpoint}
@@ -163,6 +164,23 @@ functions:
       QUEUE_URL: !Ref DdbToEsDLQ
       DDB_TO_ES_LAMBDA_NAME: '${self:service}-${self:custom.stage}-ddbToEs'
       MAX_NUMBER_OF_MESSAGES_TO_PROCESS: 100
+
+  archiveService:
+    timeout: 60
+    runtime: nodejs14.x
+    description: 'Updates TTL for adding and updating resources. Sends DynamoDB TTL expired records to an AWS Firehose for archiving in s3'
+    role: !GetAtt ArchiveLambdaRole.Arn
+    handler: archiveServiceLambda/index.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt ResourceDynamoDBTableV2.StreamArn
+          batchSize: 15 # Lambda payload size limit ~6MB; DDB row limit ~400KB = 15 items
+          maximumRetryAttempts: 3
+          startingPosition: LATEST
+    environment:
+      ARCHIVE_DELIVERY_STREAM_NAME: !Ref ArchiveDeliveryStream
+      ARCHIVE_CONFIG: ${self:custom.archiveConfig}
 
   startExportJob:
     timeout: 30
@@ -395,6 +413,9 @@ resources:
             KMSMasterKeyId: !Ref DynamodbKMSKey
             SSEEnabled: true
             SSEType: 'KMS'
+          TimeToLiveSpecification:
+            AttributeName: '_ttlInSeconds'
+            Enabled: true
           Tags: !If
             - isNotDev
             - - Key: 'backup' # You must also cfn deploy backup.yaml to enable back-ups
@@ -925,6 +946,7 @@ resources:
   - ${file(cloudformation/cognito.yaml)}
   - ${file(cloudformation/apiGateway.yaml)}
   - ${file(cloudformation/synthetics.yaml)}
+  - ${file(cloudformation/archive.yaml)}
   - Outputs:
       FHIRBinaryBucket:
         Description: S3 Bucket for storing Binary Objects
