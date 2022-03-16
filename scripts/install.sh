@@ -373,6 +373,9 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         --arg private_api_gateway_proxy_id "${PRIVATE_API_GATEWAY_PROXY_ID}" \
         '[{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodAny","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_root_id,"HttpMethod":"ANY"}},{"ResourceType":"AWS::ApiGateway::Resource","LogicalResourceId":"FHIRServicePrivateApiGatewayResourceMetadata","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_metadata_id}},{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodMetadataGet","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_metadata_id,"HttpMethod":"GET"}},{"ResourceType":"AWS::ApiGateway::Resource","LogicalResourceId":"FHIRServicePrivateApiGatewayResourceProxyVar","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_proxy_id}},{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodProxyVarAny","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_proxy_id,"HttpMethod":"ANY"}}]')
 
+    echo "RESOURCES_TO_IMPORT JSON:"
+    echo "${RESOURCES_TO_IMPORT}"
+
     # create changeset
     aws cloudformation create-change-set \
     --stack-name fhir-service-dev --change-set-name ImportChangeSet \
