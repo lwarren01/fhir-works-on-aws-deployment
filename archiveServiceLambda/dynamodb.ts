@@ -5,7 +5,7 @@ import type { BatchStatementRequest } from 'aws-sdk/clients/dynamodb';
 const TTL_FIELD_NAME = '_ttlInSeconds';
 const DEFAULT_BATCH_SIZE = 10;
 const BATCH_SIZE = parseInt(process.env.DYNAMODB_BATCH_SIZE || DEFAULT_BATCH_SIZE.toString(), 10);
-const TABLE_NAME = process.env.RESOURCE_TABLE || '';
+const TABLE_NAME = process.env.RESOURCE_TABLE || 'table';
 
 function getStatements(records: any[], ttlsInSeconds: Map<string, number>): BatchStatementRequest[] {
     const statements = new Set<string>();
@@ -27,10 +27,9 @@ function getStatements(records: any[], ttlsInSeconds: Map<string, number>): Batc
     });
 }
 
-async function runStatements(statements: BatchStatementRequest[]): Promise<any[]> {
-    console.log(`statements: ${JSON.stringify(statements, null, 2)}`);
+async function runStatements(statements: BatchStatementRequest[]): Promise<void> {
     if (statements.length === 0) {
-        return [];
+        return;
     }
 
     const dynamodb = new AWS.DynamoDB();
@@ -51,12 +50,10 @@ async function runStatements(statements: BatchStatementRequest[]): Promise<any[]
     });
 
     if (errors.length > 0) {
-        console.log(`${errors.length} statements failed. ${JSON.stringify(errors, null, 2)}`);
+        console.log(`sing sad songs, ${errors.length} statements failed. ${JSON.stringify(errors, null, 2)}`);
     } else {
-        console.log(`${statements.length} statements succeeded.`);
+        console.log(`sing happy songs, ${statements.length} statements succeeded.`);
     }
-
-    return results;
 }
 
 /**
@@ -67,9 +64,7 @@ async function updateRecords(records: any[], ttlsInSeconds: Map<string, number>)
         return;
     }
 
-    console.log('records', JSON.stringify(records, null, 2));
-    const results = await runStatements(getStatements(records, ttlsInSeconds));
-    console.log('results', JSON.stringify(results, null, 2));
+    await runStatements(getStatements(records, ttlsInSeconds));
 }
 
 export default { TTL_FIELD_NAME, updateRecords };

@@ -1,6 +1,6 @@
 import utility from './utility';
 import dynamodb from './dynamodb';
-import testHelper from './testHelper';
+import image from './image';
 
 describe('parse environment variable ARCHIVE_CONFIG', () => {
     test('archive config is not defined', () => {
@@ -292,26 +292,26 @@ describe('filter records that needs to update TTL field', () => {
 
 describe('isEqualExceptTTL', () => {
     test('old and new images are the same', () => {
-        const oldImage = testHelper.generateImage();
-        const newImage = testHelper.generateImage();
+        const oldImage = image.generateImage();
+        const newImage = image.generateImage();
         expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(true);
     });
 
     test('new image has TTL field. old image does not', () => {
-        const oldImage = testHelper.generateImage();
-        const newImage = testHelper.generateImageWithTTL(100);
+        const oldImage = image.generateImage();
+        const newImage = image.generateImageWithTTL(100);
         expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(true);
     });
 
     test('two images have different TTL', () => {
-        const oldImage = testHelper.generateImageWithTTL(100);
-        const newImage = testHelper.generateImageWithTTL(200);
+        const oldImage = image.generateImageWithTTL(100);
+        const newImage = image.generateImageWithTTL(200);
         expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(true);
     });
 
     test('two images have different cities', () => {
-        const oldImage = testHelper.generateImageWithCity(['Halifax']);
-        const newImage = testHelper.generateImageWithCity(['Toronto']);
+        const oldImage = image.generateImageWithCity(['Halifax']);
+        const newImage = image.generateImageWithCity(['Toronto']);
         expect(utility.isEqualExceptTTL(oldImage, newImage)).toEqual(false);
     });
 });
