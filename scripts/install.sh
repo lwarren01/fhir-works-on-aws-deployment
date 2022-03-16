@@ -407,7 +407,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         do
             echo "Polling change-set status for execution status"
 
-            EXECUTION_STATUS=$(aws apigateway describe-change-set \
+            EXECUTION_STATUS=$(aws cloudformation describe-change-set \
                 --change-set-name ImportChangeSet \
                 --stack-name "fhir-service-${stage}" \
             | jq '.ExecutionStatus')
