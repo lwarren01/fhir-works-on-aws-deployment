@@ -13,7 +13,7 @@ Resources:
       - FhirServerLambdaFunction
       - FhirServerProvConcLambdaAlias
     Properties:
-      Name: !Join ['-', [!Ref Stage, fhir, service, private]]
+      Name: !Join ['-', [!Ref Stage, 'fhir', 'service', 'smart', 'private']]
       Description: "Private fwoa FHIR API Server"
       CloneFrom: !Ref ApiGatewayRestApi
       EndpointConfiguration:
@@ -90,6 +90,7 @@ Resources:
 
   FHIRServicePrivateLambdaPermission:
     Type: AWS::Lambda::Permission
+    Condition: isUsingPrivateApi
     Properties:
       FunctionName: !Join
         - ':'
