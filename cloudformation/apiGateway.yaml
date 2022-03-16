@@ -116,7 +116,7 @@ Resources:
     Type: AWS::ApiGateway::UsagePlan
     Condition: isUsingPrivateApi
     DependsOn:
-      - FHIRServiceStageDeployment2
+      - FHIRServiceStageDeployment
     Properties: 
       ApiStages: 
         - ApiId: !Ref FHIRServicePrivate

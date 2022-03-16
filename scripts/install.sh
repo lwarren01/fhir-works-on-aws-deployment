@@ -344,6 +344,8 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         [ "${HAS_PROXY_RESOURCE}" = false ] && \
         [ "${HAS_PROXY_METHOD}" = false ]; \
     then
+        echo "existing stack does not have private api gateway resources. starting import..."
+
         # get the private api gateway ID
         PRIVATE_API_GATEWAY_ID=$(aws apigateway get-rest-apis | jq -r --arg private_ag_name "${stage}-fhir-service-private" '.items[] | select(.name == $private_ag_name) |  .id' )
 
@@ -357,9 +359,6 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "PRIVATE_API_GATEWAY_ROOT_ID=${PRIVATE_API_GATEWAY_ROOT_ID}"
         echo "PRIVATE_API_GATEWAY_METADATA_ID=${PRIVATE_API_GATEWAY_METADATA_ID}"
         echo "PRIVATE_API_GATEWAY_PROXY_ID=${PRIVATE_API_GATEWAY_PROXY_ID}"
-
-
-        
 
         # need to add the resources we want to import to the template
         cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodAny)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
@@ -399,6 +398,28 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         --resources-to-import "${RESOURCES_TO_IMPORT}" \
         --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
         --capabilities CAPABILITY_IAM
+
+        # wait for changeset to be in a ready state for executeion
+        echo "watiting for changeset to be AVAILABLE"
+        declare +r NUM_RETRIES=20
+        declare +r SLEEP_TIME=3
+        for (( i=1; i <=NUM_RETRIES; i++))
+        do
+            echo "Polling change-set status for execution status"
+
+            EXECUTION_STATUS=$(aws apigateway describe-change-set \
+                --change-set-name ImportChangeSet \
+                --stack-name "fhir-service-${stage}" \
+            | jq '.ExecutionStatus')
+
+            if [ EXECUTION_STATUS == "AVAILABLE" ]; then
+                echo "change-set ready for execution"
+                break
+            else
+                echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
+                sleep ${SLEEP_TIME}s
+            fi
+        done
 
         # execute changeset
         aws cloudformation execute-change-set --change-set-name ImportChangeSet --stack-name "fhir-service-${stage}"
