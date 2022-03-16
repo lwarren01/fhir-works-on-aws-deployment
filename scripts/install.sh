@@ -332,11 +332,11 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
     aws cloudformation get-template --stack-name fhir-service$smartTag-$stage | jq '.TemplateBody' > /tmp/fhir_service_template.json
 
     # double check we've not already imported the resources and methods; E.G. multiple runs in a row
-    HAS_ROOT_METHOD=$(cat /tmp/fhir_service_template.json | jq 'has("Resources.FHIRServicePrivateApiGatewayMethodAny")')
-    HAS_METADATA_RESOURCE=$(cat /tmp/fhir_service_template.json | jq 'has("Resources.FHIRServicePrivateApiGatewayResourceMetadata")')
-    HAS_METADATA_METHOD=$(cat /tmp/fhir_service_template.json | jq 'has("Resources.FHIRServicePrivateApiGatewayMethodMetadataGet")')
-    HAS_PROXY_RESOURCE=$(cat /tmp/fhir_service_template.json | jq 'has("Resources.FHIRServicePrivateApiGatewayResourceProxyVar")')
-    HAS_PROXY_METHOD=$(cat /tmp/fhir_service_template.json | jq 'has("Resources.FHIRServicePrivateApiGatewayMethodProxyVarAny")')
+    HAS_ROOT_METHOD=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayMethodAny")')
+    HAS_METADATA_RESOURCE=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayResourceMetadata")')
+    HAS_METADATA_METHOD=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayMethodMetadataGet")')
+    HAS_PROXY_RESOURCE=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayResourceProxyVar")')
+    HAS_PROXY_METHOD=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayMethodProxyVarAny")')
 
     if [ "${HAS_ROOT_METHOD}" = false ] && \
         [ "${HAS_METADATA_RESOURCE}" = false ] && \
@@ -361,19 +361,10 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "PRIVATE_API_GATEWAY_PROXY_ID=${PRIVATE_API_GATEWAY_PROXY_ID}"
 
         # need to add the resources we want to import to the template
-        cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodAny)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq '.Resources +={"FHIRServicePrivateApiGatewayMethodAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
-        
-        cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayResourceMetadata)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceMetadata":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"metadata","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
-        
-        cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodMetadataGet)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodMetadataGet":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"GET","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceMetadata"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":false,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"],"Metadata":{"cfn_nag":{"rules_to_suppress":[{"id":"W45","reason":"This API endpoint should not require authentication (due to the FHIR spec)"}]}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
-        
-        cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayResourceProxyVar)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceProxyVar":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"{proxy+}","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
-        
-        cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodProxyVarAny)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodProxyVarAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceProxyVar"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
 
         # upload template to s3
@@ -393,11 +384,11 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
 
         # create changeset
         aws cloudformation create-change-set \
-        --stack-name fhir-service-dev --change-set-name ImportChangeSet \
-        --change-set-type IMPORT \
-        --resources-to-import "${RESOURCES_TO_IMPORT}" \
-        --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
-        --capabilities CAPABILITY_IAM
+            --stack-name fhir-service-dev --change-set-name ImportChangeSet \
+            --change-set-type IMPORT \
+            --resources-to-import "${RESOURCES_TO_IMPORT}" \
+            --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
+            --capabilities CAPABILITY_IAM
 
         # wait for changeset to be in a ready state for executeion
         echo "watiting for changeset to be AVAILABLE"
