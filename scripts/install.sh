@@ -324,6 +324,70 @@ if [ "$DOCKER" != "true" ]; then
     echo "Done!"
 fi
 
+# need to import private api gateway resources into cfn
+if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
+    echo "Importing private API gateway resources and methods into the fhir-service$smartTag-$stage cloudformation stack"
+
+    # get the private api gateway ID
+    PRIVATE_API_GATEWAY_ID=$(aws apigateway get-rest-apis | jq -r '.items[] | select(.name == "${stage}-fhir-service-private") | .id')
+
+    # get the resource IDs for root, metadata and {proxy+}
+    PRIVATE_API_GATEWAY_ROOT_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/") | .id')
+    PRIVATE_API_GATEWAY_METADATA_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/metadata") | .id')
+    PRIVATE_API_GATEWAY_PROXY_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/{proxy+}") | .id')
+
+    echo "found the following IDs:"
+    echo "PRIVATE_API_GATEWAY_ID=${PRIVATE_API_GATEWAY_ID}"
+    echo "PRIVATE_API_GATEWAY_ROOT_ID=${PRIVATE_API_GATEWAY_ROOT_ID}"
+    echo "PRIVATE_API_GATEWAY_METADATA_ID=${PRIVATE_API_GATEWAY_METADATA_ID}"
+    echo "PRIVATE_API_GATEWAY_PROXY_ID=${PRIVATE_API_GATEWAY_PROXY_ID}"
+
+    echo "getting cloud formation template"
+    aws cloudformation get-template --stack-name fhir-service$smartTag-$stage | jq '.TemplateBody' > /tmp/fhir_service_template.json
+
+    # need to add the resources we want to import to the template
+    cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodAny)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    cat /tmp/fhir_service_template.json | jq '.Resources +={"FHIRServicePrivateApiGatewayMethodAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    
+    cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayResourceMetadata)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceMetadata":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"metadata","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    
+    cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodMetadataGet)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodMetadataGet":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"GET","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceMetadata"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":false,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"],"Metadata":{"cfn_nag":{"rules_to_suppress":[{"id":"W45","reason":"This API endpoint should not require authentication (due to the FHIR spec)"}]}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    
+    cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayResourceProxyVar)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceProxyVar":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"{proxy+}","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    
+    cat /tmp/fhir_service_template.json | jq 'del(.Resources.FHIRServicePrivateApiGatewayMethodProxyVarAny)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+    cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodProxyVarAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceProxyVar"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+
+    # upload template to s3
+    echo "uploading new cloudformation template to s3"
+    aws s3 cp /tmp/fhir_service_template.json s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/
+
+    # create resources to import document
+    RESOURCES_TO_IMPORT=$(jq --null-input \
+    --arg private_api_gateway_id "${PRIVATE_API_GATEWAY_ID}" \
+    --arg private_api_gateway_root_id "${PRIVATE_API_GATEWAY_ROOT_ID}" \
+    --arg private_api_gateway_metadata_id "${PRIVATE_API_GATEWAY_METADATA_ID}" \
+    --arg private_api_gateway_proxy_id "${PRIVATE_API_GATEWAY_PROXY_ID}" \
+    '[{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodAny","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_root_id,"HttpMethod":"ANY"}},{"ResourceType":"AWS::ApiGateway::Resource","LogicalResourceId":"FHIRServicePrivateApiGatewayResourceMetadata","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_metadata_id}},{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodMetadataGet","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_metadata_id,"HttpMethod":"GET"}},{"ResourceType":"AWS::ApiGateway::Resource","LogicalResourceId":"FHIRServicePrivateApiGatewayResourceProxyVar","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_proxy_id}},{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodProxyVarAny","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_proxy_id,"HttpMethod":"ANY"}}]')
+
+    # create changeset
+    aws cloudformation create-change-set \
+    --stack-name fhir-service-dev --change-set-name ImportChangeSet \
+    --change-set-type IMPORT \
+    --resources-to-import ${RESOURCES_TO_IMPORT} \
+    --template-url https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json \
+    --capabilities CAPABILITY_IAM
+
+    # execute changeset
+    aws cloudformation execute-change-set --change-set-name ImportChangeSet --stack-name fhir-service-${stage}
+
+    # curse cloudformation's name
+    # cfn!??!?!
+fi 
+
 IAMUserARN=$(aws sts get-caller-identity --query "Arn" --output text)
 
 #TODO: how to stop if not all test cases passed?
