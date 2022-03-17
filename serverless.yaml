@@ -137,7 +137,10 @@ functions:
       COGNITO_VALIDATE_OKTA_TOKEN: ${self:custom.cognitoValidateOktaToken}
       COGNITO_USERNAME: ${self:custom.cognitoUsername}
       ENABLE_DYNAMIC_HOST_NAME: ${self:custom.enableDynamicHostName}
-      API_URL: ${self:custom.oktaAudienceUrl}
+      API_URL: !If
+      - isUsingOktaAudUrl
+      - ${self:custom.oktaAudienceUrl}
+      - !Join ['', ['https://', !Ref ApiGatewayRestApi, !Sub '.execute-api.${AWS::Region}.amazonaws.com/', !Ref Stage]]
     
   ddbToEs:
     timeout: 300
@@ -288,12 +291,16 @@ resources:
           - 'true'
           - 'false'
         Description: whether or not to create a private API Gateway
+      OktaAudUrl:
+        Type: String
+        Default: ${self:custom.oktaAudienceUrl}
   - Conditions:
       isDev: !Equals [!Ref Stage, 'dev']
       isNotDev: !Not [Condition: isDev]
       isUsingHapiValidator: !Equals [!Ref UseHapiValidator, 'true']
       isMultiTenancyEnabled: !Equals [!Ref EnableMultiTenancy, 'true']
       isUsingPrivateApi: !Equals [!Ref EnablePrivateAPIGateway, 'true']
+      isUsingOktaAudUrl: !Not [!Equals [!Ref OktaAudUrl, 'https://okta.example.com']]
   - Mappings:
       # For the most up to date ec2 types see: https://aws.amazon.com/opensearch-service/pricing/
       RegionMap:
