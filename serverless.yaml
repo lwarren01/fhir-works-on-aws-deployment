@@ -32,6 +32,7 @@ custom:
   cognitoUsername: ${env:COGNITO_USERNAME, ''}
   enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
   enablePrivateAPIGateway: ${env:ENABLE_PRIVATE_API_GATEWAY, 'true'}
+  oktaAudienceUrl: ${env:OKTA_AUDIENCE_URL, 'https://okta.example.com'}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -136,7 +137,8 @@ functions:
       COGNITO_VALIDATE_OKTA_TOKEN: ${self:custom.cognitoValidateOktaToken}
       COGNITO_USERNAME: ${self:custom.cognitoUsername}
       ENABLE_DYNAMIC_HOST_NAME: ${self:custom.enableDynamicHostName}
-
+      API_URL: ${self:custom.oktaAudienceUrl}
+    
   ddbToEs:
     timeout: 300
     runtime: nodejs14.x
