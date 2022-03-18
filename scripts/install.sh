@@ -394,9 +394,10 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "watiting for changeset to be AVAILABLE"
         declare +r NUM_RETRIES=20
         declare +r SLEEP_TIME=3
+        EXECUTION_STATUS=""
         for (( i=1; i <=NUM_RETRIES; i++))
         do
-            echo "Polling change-set status for execution status"
+            echo "Polling change-set status for execution status ${EXECUTION_STATUS}"
 
             EXECUTION_STATUS=$(aws cloudformation describe-change-set \
                 --change-set-name ImportChangeSet \
