@@ -404,7 +404,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
                 --stack-name "fhir-service-${stage}" \
             | jq '.ExecutionStatus')
 
-            if [ EXECUTION_STATUS == "AVAILABLE" ]; then
+            if [ "${EXECUTION_STATUS} == "AVAILABLE" ]; then
                 echo "change-set ready for execution"
                 break
             else
