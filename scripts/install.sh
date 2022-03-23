@@ -402,7 +402,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
             EXECUTION_STATUS=$(aws cloudformation describe-change-set \
                 --change-set-name ImportChangeSet \
                 --stack-name "fhir-service-${stage}" \
-            | jq '.ExecutionStatus')
+            | jq -r '.ExecutionStatus')
 
             if [ "${EXECUTION_STATUS}" == "AVAILABLE" ]; then
                 echo "change-set ready for execution"

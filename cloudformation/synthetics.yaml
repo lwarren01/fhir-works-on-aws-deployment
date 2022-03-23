@@ -21,10 +21,10 @@ Resources:
           HOST_NAME: !Join ['', [!Ref ApiGatewayRestApi, !Sub '.execute-api.${AWS::Region}.amazonaws.com']]
           STAGE: !Ref Stage
         TimeoutInSeconds: 90
-      RuntimeVersion: 'syn-nodejs-puppeteer-3.3'
+      RuntimeVersion: 'syn-nodejs-puppeteer-3.4'
       Schedule:
         Expression: rate(15 minutes)
-      StartCanaryAfterCreation: true
+      StartCanaryAfterCreation: false
   SyntheticsBucket:
     Type: AWS::S3::Bucket
     Properties:
