@@ -24,7 +24,7 @@ Resources:
       RuntimeVersion: 'syn-nodejs-puppeteer-3.4'
       Schedule:
         Expression: rate(15 minutes)
-      StartCanaryAfterCreation: false
+      StartCanaryAfterCreation: true
   SyntheticsBucket:
     Type: AWS::S3::Bucket
     Properties:
