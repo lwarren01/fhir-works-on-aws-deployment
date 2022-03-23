@@ -6,7 +6,11 @@ Resources:
       RandomValue: ${sls:instanceId} # This forces the upload to happen on every deployment
   MetadataCanary:
     Type: AWS::Synthetics::Canary
-    DependsOn: UploadSyntheticsScriptsCustomResource
+    DependsOn: 
+      - UploadSyntheticsScriptsCustomResource
+      - ApiGatewayRestApi
+      - ResourceDynamoDBTableV2
+      - ElasticSearchDomain
     Properties:
       ArtifactS3Location: !Join ['', ['s3://', !Ref SyntheticsBucket, '/', !Join ['', [!Ref Stage, ig, canary]]]]
       Code:
