@@ -142,6 +142,7 @@ functions:
       - isUsingOktaAudUrl
       - ${self:custom.oktaAudienceUrl}
       - !Join ['', ['https://', !Ref ApiGatewayRestApi, !Sub '.execute-api.${AWS::Region}.amazonaws.com/', !Ref Stage]]
+      ARCHIVE_CONFIG: ${env:ARCHIVE_CONFIG, ''}
     
   ddbToEs:
     timeout: 300
