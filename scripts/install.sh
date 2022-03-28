@@ -305,7 +305,6 @@ echo -e "Setup will proceed with the following parameters: \n"
 echo "  Issuer Endpoint: $issuerEndpoint"
 echo "  OAuth2 API Endpoint: $oAuth2ApiEndpoint"
 echo "  Patient Picker Endpoint: $patientPickerEndpoint"
-echo "  Alarm Subscription Endpoint: $alarmSubscriptionEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
 echo "  lambdaLatencyThreshold: $lambdaLatencyThreshold"
@@ -357,15 +356,6 @@ fi
 
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
-lambdaLatencyThreshold=3000
-apigatewayMetricsEnabled=false
-apigatewayLatencyThreshold=500
-apigatewayServerErrorThreshold=3
-apigatewayClientErrorThreshold=5
-lambdaErrorThreshold=1
-ddbToESLambdaErrorThreshold=1
-alarmSubscriptionEndpoint="undefined"
-
 LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
 APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
 APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
