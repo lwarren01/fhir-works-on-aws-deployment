@@ -191,7 +191,6 @@ fi
 issuerEndpoint="undefined"
 oAuth2ApiEndpoint="undefined"
 patientPickerEndpoint="undefined"
-alarmSubscriptionEndpoint=
 stage="dev"
 region="us-west-2"
 lambdaLatencyThreshold=3000
@@ -201,7 +200,7 @@ apigatewayServerErrorThreshold=3
 apigatewayClientErrorThreshold=5
 lambdaErrorThreshold=1
 ddbToESLambdaErrorThreshold=1
-alarmSubscriptionEndpoint="undefined"
+alarmSubscriptionEndpoint=
 
 #Parse commandline args
 while [ "$1" != "" ]; do
