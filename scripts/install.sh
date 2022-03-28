@@ -194,6 +194,14 @@ patientPickerEndpoint="undefined"
 alarmSubscriptionEndpoint=
 stage="dev"
 region="us-west-2"
+lambdaLatencyThreshold=3000
+apigatewayMetricsEnabled=false
+apigatewayLatencyThreshold=500
+apigatewayServerErrorThreshold=3
+apigatewayClientErrorThreshold=5
+lambdaErrorThreshold=1
+ddbToESLambdaErrorThreshold=1
+alarmSubscriptionEndpoint="undefined"
 
 #Parse commandline args
 while [ "$1" != "" ]; do
@@ -213,6 +221,30 @@ while [ "$1" != "" ]; do
         -r | --region )                             shift
                                                     region=$1
                                                     ;;
+        --alarmSubscriptionEndpoint )               shift
+                                                    alarmSubscriptionEndpoint=$1
+                                                    ;;
+        --lambdaLatencyThreshold )                  shift
+                                                    lambdaLatencyThreshold=$1
+                                                    ;;
+        --apigatewayMetricsEnabled )                shift
+                                                    apigatewayMetricsEnabled=$1
+                                                    ;;
+        --apigatewayLatencyThreshold )              shift
+                                                    apigatewayLatencyThreshold=$1
+                                                    ;;
+        --apigatewayServerErrorThreshold )          shift
+                                                    apigatewayServerErrorThreshold=$1
+                                                    ;;
+        --apigatewayClientErrorThreshold )          shift
+                                                    apigatewayClientErrorThreshold=$1
+                                                    ;;
+        --lambdaErrorThreshold )                    shift
+                                                    lambdaErrorThreshold=$1
+                                                    ;;
+        --ddbToESLambdaErrorThreshold )             shift
+                                                    ddbToESLambdaErrorThreshold=$1
+                                                    ;;                                        
         -h | --help )                               usage
                                                     exit
                                                     ;;
@@ -276,7 +308,16 @@ echo "  Patient Picker Endpoint: $patientPickerEndpoint"
 echo "  Alarm Subscription Endpoint: $alarmSubscriptionEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
+echo "  lambdaLatencyThreshold: $lambdaLatencyThreshold"
+echo "  apigatewayMetricsEnabled: $apigatewayMetricsEnabled"
+echo "  apigatewayLatencyThreshold: $apigatewayLatencyThreshold"
+echo "  apigatewayServerErrorThreshold: $apigatewayServerErrorThreshold"
+echo "  apigatewayClientErrorThreshold: $apigatewayClientErrorThreshold"
+echo "  lambdaErrorThreshold: $lambdaErrorThreshold"
+echo "  ddbToESLambdaErrorThreshold: $ddbToESLambdaErrorThreshold"
+echo "  alarmSubscriptionEndpoint: $alarmSubscriptionEndpoint"
 echo ""
+
 if ! `YesOrNo "Are these settings correct?"`; then
     echo ""
     usage
@@ -316,14 +357,23 @@ fi
 
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
-LAMBDA_LATENCY_THRESHOLD=$LAMBDA_LATENCY_THRESHOLD \
-APIGATEWAY_LATENCY_THRESHOLD=$APIGATEWAY_LATENCY_THRESHOLD \
-APIGATEWAY_SERVER_ERROR_THRESHOLD=$APIGATEWAY_SERVER_ERROR_THRESHOLD \
-APIGATEWAY_CLIENT_ERROR_THRESHOLD=$APIGATEWAY_CLIENT_ERROR_THRESHOLD \
-LAMBDA_ERROR_THRESHOLD=$LAMBDA_ERROR_THRESHOLD \
-DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$DDB_TO_ES_LAMBDA_ERROR_THRESHOLD \
-ALARM_SUBSCRIPTION_ENDPOINT=$ALARM_SUBSCRIPTION_ENDPOINT \
-APIGATEWAY_METRICS_ENABLED=$APIGATEWAY_METRICS_ENABLED \
+lambdaLatencyThreshold=3000
+apigatewayMetricsEnabled=false
+apigatewayLatencyThreshold=500
+apigatewayServerErrorThreshold=3
+apigatewayClientErrorThreshold=5
+lambdaErrorThreshold=1
+ddbToESLambdaErrorThreshold=1
+alarmSubscriptionEndpoint="undefined"
+
+LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
 yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
