@@ -200,7 +200,7 @@ apigatewayServerErrorThreshold=3
 apigatewayClientErrorThreshold=5
 lambdaErrorThreshold=1
 ddbToESLambdaErrorThreshold=1
-alarmSubscriptionEndpoint=
+alarmSubscriptionEndpoint="undefined"
 
 #Parse commandline args
 while [ "$1" != "" ]; do
