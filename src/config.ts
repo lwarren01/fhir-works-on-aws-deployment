@@ -73,8 +73,8 @@ const getAuthService = async () => {
 };
 
 const baseResources = fhirVersion === '4.0.1' ? BASE_R4_RESOURCES : BASE_STU3_RESOURCES;
-const dynamoDbDataService = new DynamoDbDataService(DynamoDb, false, { enableMultiTenancy });
-const dynamoDbBundleService = new DynamoDbBundleService(DynamoDb, undefined, undefined, {
+const dynamoDbDataService = new DynamoDbDataService(DynamoDb, true, { enableMultiTenancy });
+const dynamoDbBundleService = new DynamoDbBundleService(DynamoDb, true, undefined, {
     enableMultiTenancy,
 });
 
@@ -111,7 +111,9 @@ const s3DataService = new S3DataService(dynamoDbDataService, fhirVersion, { enab
 export const getFhirConfig = async (): Promise<FhirConfig> => ({
     configVersion: 1.0,
     productInfo: {
-        orgName: 'Organization Name',
+        orgName: 'ResMed',
+        productTitle: 'Connected Health Platform',
+        productVersion: '0.9.10',
     },
     auth: {
         authorization: await getAuthService(),
@@ -134,6 +136,7 @@ export const getFhirConfig = async (): Promise<FhirConfig> => ({
     },
     server: {
         url: apiUrl,
+        dynamicHostName: process.env.ENABLE_DYNAMIC_HOST_NAME === 'true',
     },
     validators,
     profile: {

@@ -209,7 +209,7 @@ Resources:
 
   ExportGlueJob:
     Type: AWS::Glue::Job
-    DependsOn: UploadGlueScriptsCustomResource
+    DependsOn: UploadGlueScriptsCustomResource2
     Properties:
       Role: !GetAtt GlueJobRole.Arn
       GlueVersion: '2.0'
@@ -287,7 +287,7 @@ Resources:
                 Resource:
                   - !GetAtt DynamodbKMSKey.Arn
 
-  UploadGlueScriptsCustomResource:
+  UploadGlueScriptsCustomResource2:
     Type: AWS::CloudFormation::CustomResource
     Properties:
       ServiceToken: !GetAtt UploadGlueScriptsLambdaFunction.Arn # serverless by convention capitalizes first letter and suffixes with "LambdaFunction"

@@ -588,6 +588,96 @@ Resources:
         - !Ref FhirWorksAlarmSNSTopic
       AlarmActions:
         - !Ref FhirWorksAlarmSNSTopic
+  PrivateApiGateway5XXErrorAlarm:
+    DependsOn: FHIRServicePrivate
+    Condition: isUsingPrivateApi
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: 'We want to explicitly create an alarm name'
+    Properties:
+      AlarmDescription: Alarm when private Api GW has more than 1 5xx errors; 3 times
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, Private, ApiGateway5XXErrorAlarm]]
+      ActionsEnabled: False
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 3
+      MetricName: 5XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Join ['-', [!Ref Stage, fhir, service, private]]
+      Namespace: AWS/ApiGateway
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+      Unit: Count
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
+  PrivateApiGateway4XXErrorAlarm:
+    DependsOn: ApiGatewayRestApi
+    Condition: isUsingPrivateApi
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: 'We want to explicitly create an alarm name'
+    Properties:
+      AlarmDescription: Alarm when private Api GW has more than 1 4xx errors; 3 times
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, Private, ApiGateway4XXErrorAlarm]]
+      ActionsEnabled: False
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 3
+      MetricName: 4XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Join ['-', [!Ref Stage, fhir, service, private]]
+      Namespace: AWS/ApiGateway
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+      Unit: Count
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
+  PrivateApiGatewayLatencyAlarm:
+    DependsOn: ApiGatewayRestApi
+    Condition: isUsingPrivateApi
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: 'We want to explicitly create an alarm name'
+    Properties:
+      AlarmDescription: Alarm when private Api GW average latency is more than 3s; 2 times
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, Private, ApiGatewayLatencyAlarm]]
+      ActionsEnabled: False
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 2
+      MetricName: Latency
+      Dimensions:
+        - Name: ApiName
+          Value: !Join ['-', [!Ref Stage, fhir, service, private]]
+      Namespace: AWS/ApiGateway
+      Period: 60
+      Statistic: Average
+      Threshold: 3000
+      TreatMissingData: notBreaching
+      Unit: Milliseconds
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
   FhirWorksAlarmSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -616,3 +706,70 @@ Resources:
             Resource: !Ref FhirWorksAlarmSNSTopic
       Topics:
         - !Ref FhirWorksAlarmSNSTopic
+  # cloudwatch synthetic support
+  MetadataCanaryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when the ig synthetic canary call fails
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, MetadataPingCanaryFailedAlarm]]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: CanaryName
+          Value: !Join ['-', [!Ref Stage, metadata, ping]]
+      EvaluationPeriods: 1
+      MetricName: 'Failed'
+      Namespace: 'CloudWatchSynthetics'
+      Period: 900
+      Statistic: Maximum
+      Threshold: 0
+      TreatMissingData: notBreaching
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
+  ArchiveServiceErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when the ArchiveService Lambda function errors is more than 1 unit for 15 minutes out of the past 25 minutes.
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, ArchiveServiceLambdaErrorAlarm]]
+      ActionsEnabled: False
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 3
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ArchiveServiceLambdaFunction
+      Namespace: AWS/Lambda
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+      Unit: Count
+  ArchiveDeliveryStreamCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when the archive firehose delivery stream putRecord(s) success count is 2 standard deviations lower in 1 day.
+      AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, ArchiveDeliveryStreamCountAlarm]]
+      ActionsEnabled: False
+      ComparisonOperator: LessThanLowerThreshold
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 1
+      ThresholdMetricId: ad1
+      TreatMissingData: notBreaching
+      Metrics:
+        - Id: m1
+          MetricStat:
+            Metric:
+              MetricName: PutRecords.Success
+              Namespace: AWS/Kinesis
+              Dimensions:
+                - Name: StreamName
+                  Value: !Ref ArchiveDeliveryStream
+            Period: 300
+            Stat: Sum
+            Unit: Count
+        - Id: ad1
+          Expression: ANOMALY_DETECTION_BAND(m1, 2)
+          Label: PutRecords.Success (expected)
+          ReturnData: true

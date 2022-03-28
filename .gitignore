@@ -1,5 +1,5 @@
 /.serverless
-/.vscode
+/.vscode/*
 !/.gitignore
 /build
 /node_modules
@@ -31,3 +31,5 @@ yalc.lock
 /compiledImplementationGuides/*
 !/compiledImplementationGuides/gitkeep
 /.webpack/
+
+!/.vscode/launch.json
