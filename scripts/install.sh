@@ -23,7 +23,10 @@ function usage(){
     echo "    --issuerEndpoint (-i): This is the endpoint that mints the access_tokens and will also be the issuer in the access_token as well."
     echo "    --oAuth2ApiEndpoint (-o): this is probably similar to your issuer endpoint but is the prefix to all OAuth2 APIs"
     echo "    --patientPickerEndpoint (-p): SMART on FHIR supports launch contexts and that will typically include a patient picker application that will proxy the /token and /authorize requests."
-    echo "    --lambdaLatencyThreshold: lambda latency threshold in ms (Default: 3000) "
+    echo "    --apigatewayMetricsEnabled: Is API gateway metics enabled for this FHIR Works instance (Default: false)"
+    echo "    --alarmSubscriptionEndpoint: The HTTPS endpoint to be configured as a subscriber on the CloudWatch Alarm SNS Topic."
+    echo "    --lambdaLatencyThreshold: lambda latency threshold in ms (Default: 3000)"
+    echo "    --apigatewayLatencyThreshold: apigateway latency threshold in ms (Default: 500)"
     echo "    --apigatewayServerErrorThreshold: API gateway 5xxerror threshold (Default: 3)"
     echo "    --apigatewayClientErrorThreshold: API gateway 4xxerror threshold (Default: 5)"
     echo "    --lambdaErrorThreshold: lambda error latency threshold (Default: 1)"
@@ -193,10 +196,13 @@ patientPickerEndpoint="undefined"
 stage="dev"
 region="us-west-2"
 lambdaLatencyThreshold=3000
+apigatewayMetricsEnabled=false
+apigatewayLatencyThreshold=500
 apigatewayServerErrorThreshold=3
 apigatewayClientErrorThreshold=5
 lambdaErrorThreshold=1
 ddbToESLambdaErrorThreshold=1
+alarmSubscriptionEndpoint="undefined"
 
 #Parse commandline args
 while [ "$1" != "" ]; do
@@ -216,8 +222,17 @@ while [ "$1" != "" ]; do
         -r | --region )                             shift
                                                     region=$1
                                                     ;;
+        --alarmSubscriptionEndpoint )               shift
+                                                    alarmSubscriptionEndpoint=$1
+                                                    ;;
         --lambdaLatencyThreshold )                  shift
                                                     lambdaLatencyThreshold=$1
+                                                    ;;
+        --apigatewayMetricsEnabled )                shift
+                                                    apigatewayMetricsEnabled=$1
+                                                    ;;
+        --apigatewayLatencyThreshold )              shift
+                                                    apigatewayLatencyThreshold=$1
                                                     ;;
         --apigatewayServerErrorThreshold )          shift
                                                     apigatewayServerErrorThreshold=$1
@@ -294,11 +309,15 @@ echo "  Patient Picker Endpoint: $patientPickerEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
 echo "  lambdaLatencyThreshold: $lambdaLatencyThreshold"
+echo "  apigatewayMetricsEnabled: $apigatewayMetricsEnabled"
+echo "  apigatewayLatencyThreshold: $apigatewayLatencyThreshold"
 echo "  apigatewayServerErrorThreshold: $apigatewayServerErrorThreshold"
 echo "  apigatewayClientErrorThreshold: $apigatewayClientErrorThreshold"
 echo "  lambdaErrorThreshold: $lambdaErrorThreshold"
 echo "  ddbToESLambdaErrorThreshold: $ddbToESLambdaErrorThreshold"
+echo "  alarmSubscriptionEndpoint: $alarmSubscriptionEndpoint"
 echo ""
+
 if ! `YesOrNo "Are these settings correct?"`; then
     echo ""
     usage
@@ -437,12 +456,15 @@ fi
 
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
-lambdaLatencyThreshold=$lambdaLatencyThreshold \
-apigatewayServerErrorThreshold=$apigatewayServerErrorThreshold \
-apigatewayClientErrorThreshold=$apigatewayClientErrorThreshold \
-lambdaErrorThreshold=$lambdaErrorThreshold \
-ddbToESLambdaErrorThreshold=$ddbToESLambdaErrorThreshold \
-yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint --logLevel $LOG_LEVEL || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
+yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
 echo -e "Deployed Successfully.\n"

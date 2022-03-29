@@ -12,11 +12,14 @@ custom:
   exportRequestTableJobStatusIndex: 'jobStatus-index'
   stage: ${opt:stage, self:provider.stage}
   region: ${opt:region, self:provider.region}
-  lambdaLatencyThreshold: ${env:lambdaLatencyThreshold}
-  apigatewayServerErrorThreshold: ${env:apigatewayServerErrorThreshold}
-  apigatewayClientErrorThreshold: ${env:apigatewayClientErrorThreshold}
-  lambdaErrorThreshold: ${env:lambdaErrorThreshold}
-  ddbToESLambdaErrorThreshold: ${env:ddbToESLambdaErrorThreshold}
+  lambdaLatencyThreshold: ${env:LAMBDA_LATENCY_THRESHOLD, '3000'}
+  apigatewayLatencyThreshold: ${env:APIGATEWAY_LATENCY_THRESHOLD, '500'}
+  apigatewayServerErrorThreshold: ${env:APIGATEWAY_SERVER_ERROR_THRESHOLD, '3'}
+  apigatewayClientErrorThreshold: ${env:APIGATEWAY_CLIENT_ERROR_THRESHOLD, '5'}
+  lambdaErrorThreshold: ${env:LAMBDA_ERROR_THRESHOLD, '1'}
+  ddbToESLambdaErrorThreshold: ${env:DDB_TO_ES_LAMBDA_ERROR_THRESHOLD, '1'}
+  alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT, ''}
+  apigatewayMetricsEnabled: ${env:APIGATEWAY_METRICS_ENABLED, 'false'}
   archiveConfig: ${env:archiveConfig, 'AuditEvent,15778476|Patient,94670856'}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
@@ -83,6 +86,8 @@ provider:
     ENABLE_MULTI_TENANCY: !Ref EnableMultiTenancy
     LOG_LEVEL: '${self:custom.logLevel}'
     AWS_XRAY_CONTEXT_MISSING: 'IGNORE_ERROR'
+  apiGateway:
+    metrics: ${self:custom.apigatewayMetricsEnabled}
   apiKeys:
     - name: 'developer-key-${self:custom.stage}' # Full name must be known at package-time
       description: Key for developer to access the FHIR Api
@@ -310,6 +315,7 @@ resources:
       isNotDev: !Not [Condition: isDev]
       isUsingHapiValidator: !Equals [!Ref UseHapiValidator, 'true']
       isMultiTenancyEnabled: !Equals [!Ref EnableMultiTenancy, 'true']
+      isAlarmSubscriptionEnabled: !Not [!Equals ['${self:custom.alarmSubscriptionEndpoint}', '']]
       isUsingPrivateApi: !Equals [!Ref EnablePrivateAPIGateway, 'true']
   - Mappings:
       # For the most up to date ec2 types see: https://aws.amazon.com/opensearch-service/pricing/
@@ -944,6 +950,7 @@ resources:
   - ${file(cloudformation/kms.yaml)}
   - ${file(cloudformation/elasticsearch.yaml)}
   - ${file(cloudformation/bulkExport.yaml)}
+  - ${file(cloudformation/cloudwatchDashboard.yaml)}
   - ${file(cloudformation/cognito.yaml)}
   - ${file(cloudformation/apiGateway.yaml)}
   - ${file(cloudformation/synthetics.yaml)}
