@@ -964,11 +964,6 @@ resources:
         Value: !Ref FhirWorksAlarmSNSTopic
         Export:
           Name: FhirWorksAlarmSNSTopicARN
-      FhirWorksAlarmSNSTopicSubscription:
-        Description: SNS topic for fhirworks alarms
-        Value: !Ref FhirWorksAlarmSNSTopicSubscription
-        Export:
-          Name: FhirWorksAlarmSNSTopicSubscriptionARN
       ResourceDynamoDBTableV2Arn:
         Description: DynamoDB table for storing non-Binary resources
         Value: !GetAtt ResourceDynamoDBTableV2.Arn
