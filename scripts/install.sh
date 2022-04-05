@@ -527,6 +527,7 @@ echo ""
 if `YesOrNo "Would you like to set the server to archive logs older than 7 days?"`; then
     cd ${PACKAGE_ROOT}/auditLogMover
     yarn install --frozen-lockfile
+    ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
     yarn run serverless-deploy --region $region --stage $stage
     cd ${PACKAGE_ROOT}
     echo -e "\n\nSuccess."

@@ -732,7 +732,7 @@ Resources:
     Properties:
       AlarmDescription: Alarm when the ArchiveService Lambda function errors is more than 1 unit for 15 minutes out of the past 25 minutes.
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, High, ArchiveServiceLambdaErrorAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: GreaterThanOrEqualToThreshold
       EvaluationPeriods: 5
       DatapointsToAlarm: 3
@@ -746,12 +746,16 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
       Unit: Count
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
   ArchiveDeliveryStreamCountAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: Alarm when the archive firehose delivery stream putRecord(s) success count is 2 standard deviations lower in 1 day.
       AlarmName: !Join ['.', [FhirSolution, !Ref Stage, Low, ArchiveDeliveryStreamCountAlarm]]
-      ActionsEnabled: False
+      ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
       ComparisonOperator: LessThanLowerThreshold
       EvaluationPeriods: 3
       DatapointsToAlarm: 1
@@ -773,3 +777,7 @@ Resources:
           Expression: ANOMALY_DETECTION_BAND(m1, 2)
           Label: PutRecords.Success (expected)
           ReturnData: true
+      OKActions:
+        - !Ref FhirWorksAlarmSNSTopic
+      AlarmActions:
+        - !Ref FhirWorksAlarmSNSTopic
