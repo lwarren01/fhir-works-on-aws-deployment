@@ -3,7 +3,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 #
 
-service: audit-log-moverblu
+service: audit-log-mover
 
 custom:
   stage: ${opt:stage, self:provider.stage}
