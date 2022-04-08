@@ -36,6 +36,7 @@ custom:
   cognitoUsername: ${env:COGNITO_USERNAME, ''}
   enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
   enablePrivateAPIGateway: ${env:ENABLE_PRIVATE_API_GATEWAY, 'true'}
+  importPrivateAPIGateway: ${env:IMPORT_PRIVATE_API_GATEWAY, 'false'}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -310,6 +311,12 @@ resources:
           - 'true'
           - 'false'
         Description: whether or not to create a private API Gateway
+      ImportPrivateAPIGateway:
+        Type: String
+        Default: ${self:custom.importPrivateAPIGateway}
+        AllowedValues:
+          - 'true'
+          - 'false'
   - Conditions:
       isDev: !Equals [!Ref Stage, 'dev']
       isNotDev: !Not [Condition: isDev]
