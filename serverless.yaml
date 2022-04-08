@@ -324,6 +324,7 @@ resources:
       isMultiTenancyEnabled: !Equals [!Ref EnableMultiTenancy, 'true']
       isAlarmSubscriptionEnabled: !Not [!Equals ['${self:custom.alarmSubscriptionEndpoint}', '']]
       isUsingPrivateApi: !Equals [!Ref EnablePrivateAPIGateway, 'true']
+      isImportingPrivateApi: !And [isUsingPrivateApi, !Equals [!Ref ImportPrivateAPIGateway, 'true']]
   - Mappings:
       # For the most up to date ec2 types see: https://aws.amazon.com/opensearch-service/pricing/
       RegionMap:
