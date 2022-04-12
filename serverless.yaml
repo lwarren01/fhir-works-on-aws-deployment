@@ -35,8 +35,8 @@ custom:
   cognitoValidateOktaToken: ${env:COGNITO_VALIDATE_OKTA_TOKEN, 'true'}
   cognitoUsername: ${env:COGNITO_USERNAME, ''}
   enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
-  enablePrivateAPIGateway: ${env:ENABLE_PRIVATE_API_GATEWAY, 'true'}
-  importPrivateAPIGateway: ${env:IMPORT_PRIVATE_API_GATEWAY, 'false'}
+  enablePrivateAPIGateway: 'false'
+  importPrivateAPIGateway: 'false'
   bundle:
     packager: yarn
     linting: false # We use our own linter
