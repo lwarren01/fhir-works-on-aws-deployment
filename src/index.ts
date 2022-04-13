@@ -8,10 +8,6 @@ import serverless from 'serverless-http';
 import { generateServerlessRouter } from 'fhir-works-on-aws-routing';
 import { getFhirConfig, genericResources } from './config';
 
-require('console-stamp')(console, {
-    format: ':date(yyyy/mm/dd HH:MM:ss.l)',
-});
-
 const corsOptions: CorsOptions = {
     origin: [
         'http://localhost:8000',
