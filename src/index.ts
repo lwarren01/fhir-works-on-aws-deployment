@@ -23,7 +23,11 @@ const corsOptions: CorsOptions = {
 
 const ensureAsyncInit = async (initPromise: Promise<any>): Promise<void> => {
     try {
+        console.log('start: asyncServerless()');
+
         await initPromise;
+
+        console.log('end: asyncServerless()');
     } catch (e) {
         console.error('Async initialization failed', e);
         // Explicitly exit the process so that next invocation re-runs the init code.
@@ -40,14 +44,10 @@ async function asyncServerless() {
     });
 }
 
-console.log('start: asyncServerless()');
 const serverlessHandler: Promise<any> = asyncServerless();
-console.log('end: asyncServerless()');
 
 exports.handler = async (event: any = {}, context: any = {}): Promise<any> => {
-    console.log('start: asyncServerless()');
     await ensureAsyncInit(serverlessHandler);
-    console.log('end: asyncServerless()');
 
     return (await serverlessHandler)(event, context);
 };
