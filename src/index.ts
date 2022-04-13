@@ -8,6 +8,10 @@ import serverless from 'serverless-http';
 import { generateServerlessRouter } from 'fhir-works-on-aws-routing';
 import { getFhirConfig, genericResources } from './config';
 
+require('console-stamp')(console, {
+    format: ':date(yyyy/mm/dd HH:MM:ss.l)',
+});
+
 const corsOptions: CorsOptions = {
     origin: [
         'http://localhost:8000',
@@ -40,9 +44,14 @@ async function asyncServerless() {
     });
 }
 
+console.log('start: asyncServerless()');
 const serverlessHandler: Promise<any> = asyncServerless();
+console.log('end: asyncServerless()');
 
 exports.handler = async (event: any = {}, context: any = {}): Promise<any> => {
+    console.log('start: asyncServerless()');
     await ensureAsyncInit(serverlessHandler);
+    console.log('end: asyncServerless()');
+
     return (await serverlessHandler)(event, context);
 };

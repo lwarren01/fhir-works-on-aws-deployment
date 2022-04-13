@@ -11,7 +11,8 @@
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*"]
-    }
+    },
+    "skipLibCheck": true /* Skip type checking all .d.ts files. */
   },
   "exclude": ["src/**/*.test.ts", "src/**/__mocks__/*.ts"],
   "include": ["src/**/*"]
