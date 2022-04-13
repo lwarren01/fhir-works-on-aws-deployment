@@ -57,7 +57,7 @@ const getIssuerEndpoint = async (suffix?: string) => {
     if (issuerEndpoint === defaultEndpoint) {
         console.log(`start: getParameter(/${stage}/fhirworks-auth-issuer-endpoint)`);
         issuerEndpoint = await getParameter(`/${stage}/fhirworks-auth-issuer-endpoint`);
-        console.log('start: getParameter()');
+        console.log('end: getParameter()');
     }
 
     return suffix ? `${issuerEndpoint}${suffix}` : issuerEndpoint;
