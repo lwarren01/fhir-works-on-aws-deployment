@@ -55,9 +55,7 @@ const expectedAudValue = enableMultiTenancy
 export const fhirVersion: FhirVersion = '4.0.1';
 const getIssuerEndpoint = async (suffix?: string) => {
     if (issuerEndpoint === defaultEndpoint) {
-        console.log(`start: getParameter(/${stage}/fhirworks-auth-issuer-endpoint)`);
         issuerEndpoint = await getParameter(`/${stage}/fhirworks-auth-issuer-endpoint`);
-        console.log(`end: getParameter(/${stage}/fhirworks-auth-issuer-endpoint)`);
     }
 
     return suffix ? `${issuerEndpoint}${suffix}` : issuerEndpoint;
