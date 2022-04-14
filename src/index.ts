@@ -49,5 +49,9 @@ const serverlessHandler: Promise<any> = asyncServerless();
 exports.handler = async (event: any = {}, context: any = {}): Promise<any> => {
     await ensureAsyncInit(serverlessHandler);
 
-    return (await serverlessHandler)(event, context);
+    console.log('start: handling request');
+    const result = (await serverlessHandler)(event, context);
+    console.log('end: handling requests');
+
+    return result;
 };
