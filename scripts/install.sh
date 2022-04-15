@@ -396,8 +396,8 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
     # 4. already imported - stack will exist, resources will exist and have both logical and physical IDs
     
     # check for fresh install
-    stack_exists=$(aws cloudformation list-stacks | jq -e -r --arg stack_name "fhir-service$smartTag-$stage" '.StackSummaries[] | select(.StackName == $stack_name and .StackStatus != "DELETE_COMPLETE" and .StackStatus != "DELETE_IN_PROGRESS") | .StackId')
-    if [ "$stack_exists" == null ]; then
+    stack_exists=$(aws cloudformation list-stacks | jq -e -r --arg stack_name "fhir-service$smartTag-$stage" '.StackSummaries[] | select(.StackName == $stack_name and .StackStatus != "DELETE_COMPLETE" and .StackStatus != "DELETE_IN_PROGRESS") | has("StackId")')
+    if [ "$stack_exists" = false ]; then
         # okay so a fresh install will need the stack deployed w/import = false to do the initial cloneFrom
         
         echo "Fresh install so creating private API gateway using cloneFrom"
@@ -413,6 +413,8 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         IMPORT_PRIVATE_API_GATEWAY="false" \
         yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
         echo "completed cloneFrom deploy...."
+    else
+        echo "found existing deployment, skipping cloneFrom private API gateway serverless deploy"
     fi
 
     echo "getting cloud formation template"
@@ -426,14 +428,20 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         "FHIRServicePrivateApiGatewayMethodProxyVarAny"
     )
     has_resources=false
+    echo "checking cloudformation template for private api gateway resources"
     for i in "${resources[@]}"
     do
         has_resource=$(cat /tmp/fhir_service_template.json | jq --arg resource_id "$i" '.Resources | has($resource_id)')
-        has_resources=$has_resources || $has_resource
+        if [ "$has_resource" = true ]; then
+            echo "found private api gateway resource $i in cloudformation template"
+            has_resources=true
+        else
+            echo "did not find private api gateway resource $i in cloudformation template"
+        fi
     done
 
     if [ "$has_resources" = true ]; then
-        echo "cloudformation template already contains private API gateway resources"
+        echo "cloudformation template already contains private API gateway resources. checking if physical IDs exist"
         for i in "${resources[@]}"
         do
             has_physical_id=$(aws cloudformation describe-stack-resource --logical-resource-id "$i" --stack-name "fhir-service$smartTag-$stage" | jq -e -r '.StackResourceDetail | has("PhysicalResourceId")')
@@ -443,6 +451,8 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
                 echo "found private API gateway resource $i without a physical ID"
                 cat /tmp/fhir_service_template.json | jq -arg resource "$i" 'del(.Resources.$resource)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
                 has_resources=false
+            else
+                echo "physical ID found for $i"
             fi
 
             if [ "$has_resources" = false ]; then
