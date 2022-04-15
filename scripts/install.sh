@@ -397,7 +397,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
     
     # check for fresh install
     stack_exists=$(aws cloudformation list-stacks | jq -e -r --arg stack_name "fhir-service$smartTag-$stage" '.StackSummaries[] | select(.StackName == $stack_name and .StackStatus != "DELETE_COMPLETE" and .StackStatus != "DELETE_IN_PROGRESS") | has("StackId")')
-    if [ "$stack_exists" = false ]; then
+    if [ "$stack_exists" != true ]; then
         # okay so a fresh install will need the stack deployed w/import = false to do the initial cloneFrom
         
         echo "Fresh install so creating private API gateway using cloneFrom"
