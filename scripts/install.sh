@@ -410,6 +410,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
         ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
         APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
+        ENABLE_PRIVATE_API_GATEWAY="true" \
         IMPORT_PRIVATE_API_GATEWAY="false" \
         yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
         echo "completed cloneFrom deploy...."
@@ -419,6 +420,27 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
 
     echo "getting cloud formation template"
     aws cloudformation get-template --stack-name "fhir-service$smartTag-$stage" | jq '.TemplateBody' > /tmp/fhir_service_template.json
+
+    # check if we've deployed before but w/o a cloneFrom run
+    has_private_api_gateway=$(cat /tmp/fhir_service_template.json | jq -e -r '.Resources | has("FHIRServicePrivate")')
+    if [ "$has_private_api_gateway" != true ]; then
+        echo "existing install but no private API gateway"
+        echo "starting cloneFrom deploy...."
+        LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+        APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+        APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+        APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+        LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+        DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+        ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+        APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
+        ENABLE_PRIVATE_API_GATEWAY="true" \
+        IMPORT_PRIVATE_API_GATEWAY="false" \
+        yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+        echo "completed cloneFrom deploy...."
+    else
+        echo "private api gateway already deployed with cloneFrom"
+    fi
 
     resources=(
         "FHIRServicePrivateApiGatewayMethodAny"
@@ -445,11 +467,12 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         for i in "${resources[@]}"
         do
             has_physical_id=$(aws cloudformation describe-stack-resource --logical-resource-id "$i" --stack-name "fhir-service$smartTag-$stage" | jq -e -r '.StackResourceDetail | has("PhysicalResourceId")')
-            if [ "$has_physical_id" = false ]; then
+            if [ "$has_physical_id" != true ]; then
                 # we need to remove the resources from the template for import
 
                 echo "found private API gateway resource $i without a physical ID"
-                cat /tmp/fhir_service_template.json | jq -arg resource "$i" 'del(.Resources.$resource)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+                resource_path=".Resources.$i"
+                cat /tmp/fhir_service_template.json | jq --arg resource "$resource_path" 'del($resource)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
                 has_resources=false
             else
                 echo "physical ID found for $i"
