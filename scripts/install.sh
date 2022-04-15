@@ -186,24 +186,31 @@ function wait_for_cfn_changeset(){
     
     # wait for changeset to be in a ready state for executeion
     echo "watiting for changeset to be $state"
-    declare +r NUM_RETRIES=20
+    declare +r NUM_RETRIES=40
     declare +r SLEEP_TIME=3
     execution_status=""
     for (( i=1; i <=NUM_RETRIES; i++))
     do
         echo "Polling change-set status for execution status ${execution_status}"
 
-        execution_status=$(aws cloudformation describe-change-set \
+        aws cloudformation describe-change-set \
             --change-set-name "$change_set_name" \
-            --stack-name "fhir-service-${stage}" \
-        | jq -r '.ExecutionStatus')
+            --stack-name "fhir-service$smartTag-$stage" > /tmp/execution_status.json
+        
+        status=$(cat /tmp/execution_status.json | jq -r '.Status')
+        execution_status=$(cat /tmp/execution_status.json | jq -r '.ExecutionStatus')
 
         if [ "${execution_status}" == "$state" ]; then
             echo "change-set in $state"
             break
         else
-            echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
-            sleep ${SLEEP_TIME}s
+            if [ "$status" == "FAILED" ]; then
+                status_reason=$(cat /tmp/execution_status.json | jq -r '.StatusReason')
+                echo "changeset failed with $status_reason"
+            else
+                echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
+                sleep ${SLEEP_TIME}s
+            fi
         fi
     done
 }
@@ -306,7 +313,7 @@ fi
 
 #Check to make sure the server isn't already deployed
 already_deployed=false
-redep=`aws cloudformation describe-stacks --stack-name fhir-service-smart-$stage --region $region --output text 2>&1` && already_deployed=true
+redep=`aws cloudformation describe-stacks --stack-name "fhir-service$smartTag-$stage" --region $region --output text 2>&1` && already_deployed=true
 if $already_deployed; then
     if `echo "$redep" | grep -Fxq "DELETE_FAILED"`; then
         fail=true
@@ -486,8 +493,9 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         if [ "$has_resources" = false ]; then
             # need to update the cfn template to no longer include the resources w/o physical IDs so we can import
             echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
+            cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_update_template.json"
             aws s3 cp \
-                "/tmp/fhir_service_template.json" \
+                "/tmp/fhir_service_update_template.json" \
                 "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
 
             # create update changeset
@@ -496,7 +504,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
                 --stack-name "fhir-service$smartTag-$stage" \
                 --change-set-name "UpdateChangeSet" \
                 --change-set-type "UPDATE" \
-                --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
+                --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_update_template.json" \
                 --capabilities "CAPABILITY_IAM"
 
             # wait for changeset to be in a ready state for execution
@@ -540,7 +548,10 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
 
         # upload template to s3
         echo "uploading new cloudformation template to s3"
-        aws s3 cp /tmp/fhir_service_template.json s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/
+        cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_import_template.json"
+        aws s3 cp \
+            "/tmp/fhir_service_template.json" 
+            "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
 
         # create resources to import document
         RESOURCES_TO_IMPORT=$(jq --null-input \
@@ -559,15 +570,14 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
             --change-set-name "ImportChangeSet" \
             --change-set-type "IMPORT" \
             --resources-to-import "${RESOURCES_TO_IMPORT}" \
-            --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
-            --capabilities CAPABILITY_IAM
-
+            --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_import_template.json" \
+            --capabilities "CAPABILITY_IAM"
         
         # wait for changeset to be in a ready state for executeion
         wait_for_cfn_changeset "ImportChangeSet" "AVAILABLE"
         
         # execute changeset
-        aws cloudformation execute-change-set --change-set-name ImportChangeSet --stack-name "fhir-service-${stage}"
+        aws cloudformation execute-change-set --change-set-name ImportChangeSet --stack-name "fhir-service$smartTag-$stage"
         wait_for_cfn_changeset "ImportChangeSet" "EXECUTE_COMPLETE"
 
         # curse cloudformation's name
