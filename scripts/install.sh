@@ -453,7 +453,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
     echo "checking cloudformation template for private api gateway resources"
     for i in "${resources[@]}"
     do
-        has_resource=$(cat /tmp/fhir_service_template.json | jq --arg resource_id "$i" '.Resources | has($resource_id)')
+        has_resource=$(cat /tmp/fhir_service_template.json | jq -e -r --arg resource_id "$i" '.Resources | has($resource_id)')
         if [ "$has_resource" = true ]; then
             echo "found private api gateway resource $i in cloudformation template"
             has_resources=true
@@ -464,49 +464,53 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
 
     if [ "$has_resources" = true ]; then
         echo "cloudformation template already contains private API gateway resources. checking if physical IDs exist"
+
+        aws cloudformation describe-stack-resources --stack-name "fhir-service$smartTag-$stage" > /tmp/stack_descriptions.json
         for i in "${resources[@]}"
         do
-            has_physical_id=$(aws cloudformation describe-stack-resource --logical-resource-id "$i" --stack-name "fhir-service$smartTag-$stage" | jq -e -r '.StackResourceDetail | has("PhysicalResourceId")')
-            if [ "$has_physical_id" != true ]; then
-                # we need to remove the resources from the template for import
+            has_resource=$(cat /tmp/fhir_service_template.json | jq -e -r --arg resource_id "$i" '.Resources | has($resource_id)')
+            if [ "$has_resource" = true ]; then
+                resource_description=$(cat /tmp/stack_descriptions.json | jq -e -r --arg resource_id "$i" '.StackResources[] | select(.LogicalResourceId == $resource_id)')
+                if [ "$resource_description" != "" ]; then
+                    # we need to remove the resources from the template for import
 
-                echo "found private API gateway resource $i without a physical ID"
-                resource_path=".Resources.$i"
-                cat /tmp/fhir_service_template.json | jq --arg resource "$resource_path" 'del($resource)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
-                has_resources=false
-            else
-                echo "physical ID found for $i"
-            fi
-
-            if [ "$has_resources" = false ]; then
-                # need to update the cfn template to no longer include the resources w/o physical IDs so we can import
-                echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
-                aws s3 cp \
-                    "/tmp/fhir_service_template.json" \
-                    "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
-
-                # create update changeset
-                echo "creating cloudformation changeset to remove private API gateway resources w/o physical IDs"
-                aws cloudformation create-change-set \
-                    --stack-name "fhir-service$smartTag-$stage" \
-                    --change-set-name "UpdateChangeSet" \
-                    --change-set-type "UPDATE" \
-                    --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
-                    --capabilities "CAPABILITY_IAM"
-
-                # wait for changeset to be in a ready state for execution
-                wait_for_cfn_changeset "UpdateChangeSet" "AVAILABLE"
-                
-                # execute changeset
-                echo "executing cloudformation changeset to remove private API gateway resources w/o physical IDs"
-                aws cloudformation execute-change-set \
-                    --change-set-name "UpdateChangeSet" \
-                    --stack-name "fhir-service$smartTag-$stage"
-
-                # wait for changeset to be executed
-                wait_for_cfn_changeset "UpdateChangeSet" "EXECUTE_COMPLETE"
+                    echo "found private API gateway resource $i without a physical ID"
+                    cat /tmp/fhir_service_template.json | jq -r --arg resource_id "$i" 'delpaths([["Resources", $resource_id]])' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+                    has_resources=false
+                else
+                    echo "physical ID found for $i"
+                fi
             fi
         done
+
+        if [ "$has_resources" = false ]; then
+            # need to update the cfn template to no longer include the resources w/o physical IDs so we can import
+            echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
+            aws s3 cp \
+                "/tmp/fhir_service_template.json" \
+                "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
+
+            # create update changeset
+            echo "creating cloudformation changeset to remove private API gateway resources w/o physical IDs"
+            aws cloudformation create-change-set \
+                --stack-name "fhir-service$smartTag-$stage" \
+                --change-set-name "UpdateChangeSet" \
+                --change-set-type "UPDATE" \
+                --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
+                --capabilities "CAPABILITY_IAM"
+
+            # wait for changeset to be in a ready state for execution
+            wait_for_cfn_changeset "UpdateChangeSet" "AVAILABLE"
+            
+            # execute changeset
+            echo "executing cloudformation changeset to remove private API gateway resources w/o physical IDs"
+            aws cloudformation execute-change-set \
+                --change-set-name "UpdateChangeSet" \
+                --stack-name "fhir-service$smartTag-$stage"
+
+            # wait for changeset to be executed
+            wait_for_cfn_changeset "UpdateChangeSet" "EXECUTE_COMPLETE"
+        fi
     fi
 
     # check for a deployment w/o private API gateway resource physical IDs
@@ -528,7 +532,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "PRIVATE_API_GATEWAY_PROXY_ID=${PRIVATE_API_GATEWAY_PROXY_ID}"
 
         # need to add the resources we want to import to the template
-        cat /tmp/fhir_service_template.json | jq '.Resources +={"FHIRServicePrivateApiGatewayMethodAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceMetadata":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"metadata","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodMetadataGet":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"GET","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceMetadata"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":false,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"],"Metadata":{"cfn_nag":{"rules_to_suppress":[{"id":"W45","reason":"This API endpoint should not require authentication (due to the FHIR spec)"}]}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
         cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceProxyVar":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"{proxy+}","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
