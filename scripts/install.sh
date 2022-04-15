@@ -178,6 +178,36 @@ function get_valid_pass(){
     echo "$s1"
 }
 
+#Function to wait for cfn to change state
+#Usage: wait_for_cfn_changeset "ImportChangeSet" "AVAILABLE"
+function wait_for_cfn_changeset(){
+    change_set_name="$1"
+    state="$2"
+    
+    # wait for changeset to be in a ready state for executeion
+    echo "watiting for changeset to be $state"
+    declare +r NUM_RETRIES=20
+    declare +r SLEEP_TIME=3
+    execution_status=""
+    for (( i=1; i <=NUM_RETRIES; i++))
+    do
+        echo "Polling change-set status for execution status ${execution_status}"
+
+        execution_status=$(aws cloudformation describe-change-set \
+            --change-set-name "$change_set_name" \
+            --stack-name "fhir-service-${stage}" \
+        | jq -r '.ExecutionStatus')
+
+        if [ "${execution_status}" == "$state" ]; then
+            echo "change-set in $state"
+            break
+        else
+            echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
+            sleep ${SLEEP_TIME}s
+        fi
+    done
+}
+
 #Change directory to that of the script (in case someone calls it from another folder)
 cd "${0%/*}"
 # Save parent directory
@@ -343,26 +373,111 @@ if [ "$DOCKER" != "true" ]; then
     echo "Done!"
 fi
 
+IAMUserARN=$(aws sts get-caller-identity --query "Arn" --output text)
+
+#TODO: how to stop if not all test cases passed?
+cd ${PACKAGE_ROOT}
+yarn install --frozen-lockfile
+yarn run release
+
+touch serverless_config.json
+if ! grep -Fq "devAwsUserAccountArn" serverless_config.json; then
+    echo -e "{\n  \"devAwsUserAccountArn\": \"$IAMUserARN\"\n}" >> serverless_config.json
+fi
+
 # need to import private api gateway resources into cfn
 if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
     echo "Importing private API gateway resources and methods into the fhir-service$smartTag-$stage cloudformation stack"
 
+    # 4 different states to address here
+    # 1. Fresh install - will not have a cloudformation stack yet and we need to do a serverless deploy w/import = false
+    # 2. version w/o private API gateway - stack will exist but private api gateway resources will not have physical IDs
+    # 3. version w/private API - stack will exist but private API gateway resource will not exist in stack
+    # 4. already imported - stack will exist, resources will exist and have both logical and physical IDs
+    
+    # check for fresh install
+    stack_exists=$(aws cloudformation list-stacks | jq -e -r --arg stack_name "fhir-service$smartTag-$stage" '.StackSummaries[] | select(.StackName == $stack_name and .StackStatus != "DELETE_COMPLETE" and .StackStatus != "DELETE_IN_PROGRESS") | .StackId')
+    if [ "$stack_exists" == null ]; then
+        # okay so a fresh install will need the stack deployed w/import = false to do the initial cloneFrom
+        
+        echo "Fresh install so creating private API gateway using cloneFrom"
+        echo "starting cloneFrom deploy...."
+        LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+        APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+        APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+        APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+        LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+        DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+        ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+        APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
+        IMPORT_PRIVATE_API_GATEWAY="false" \
+        yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+        echo "completed cloneFrom deploy...."
+    fi
+
     echo "getting cloud formation template"
-    aws cloudformation get-template --stack-name fhir-service$smartTag-$stage | jq '.TemplateBody' > /tmp/fhir_service_template.json
+    aws cloudformation get-template --stack-name "fhir-service$smartTag-$stage" | jq '.TemplateBody' > /tmp/fhir_service_template.json
 
-    # double check we've not already imported the resources and methods; E.G. multiple runs in a row
-    HAS_ROOT_METHOD=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayMethodAny")')
-    HAS_METADATA_RESOURCE=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayResourceMetadata")')
-    HAS_METADATA_METHOD=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayMethodMetadataGet")')
-    HAS_PROXY_RESOURCE=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayResourceProxyVar")')
-    HAS_PROXY_METHOD=$(cat /tmp/fhir_service_template.json | jq '.Resources | has("FHIRServicePrivateApiGatewayMethodProxyVarAny")')
+    resources=(
+        "FHIRServicePrivateApiGatewayMethodAny"
+        "FHIRServicePrivateApiGatewayResourceMetadata"
+        "FHIRServicePrivateApiGatewayMethodMetadataGet"
+        "FHIRServicePrivateApiGatewayResourceProxyVar"
+        "FHIRServicePrivateApiGatewayMethodProxyVarAny"
+    )
+    has_resources=false
+    for i in "${resources[@]}"
+    do
+        has_resource=$(cat /tmp/fhir_service_template.json | jq --arg resource_id "$i" '.Resources | has($resource_id)')
+        has_resources=$has_resources || $has_resource
+    done
 
-    if [ "${HAS_ROOT_METHOD}" = false ] && \
-        [ "${HAS_METADATA_RESOURCE}" = false ] && \
-        [ "${HAS_METADATA_METHOD}" = false ] && \
-        [ "${HAS_PROXY_RESOURCE}" = false ] && \
-        [ "${HAS_PROXY_METHOD}" = false ]; \
-    then
+    if [ "$has_resources" = true ]; then
+        echo "cloudformation template already contains private API gateway resources"
+        for i in "${resources[@]}"
+        do
+            has_physical_id=$(aws cloudformation describe-stack-resource --logical-resource-id "$i" --stack-name "fhir-service$smartTag-$stage" | jq -e -r '.StackResourceDetail | has("PhysicalResourceId")')
+            if [ "$has_physical_id" = false ]; then
+                # we need to remove the resources from the template for import
+
+                echo "found private API gateway resource $i without a physical ID"
+                cat /tmp/fhir_service_template.json | jq -arg resource "$i" 'del(.Resources.$resource)' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+                has_resources=false
+            fi
+
+            if [ "$has_resources" = false ]; then
+                # need to update the cfn template to no longer include the resources w/o physical IDs so we can import
+                echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
+                aws s3 cp \
+                    "/tmp/fhir_service_template.json" \
+                    "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
+
+                # create update changeset
+                echo "creating cloudformation changeset to remove private API gateway resources w/o physical IDs"
+                aws cloudformation create-change-set \
+                    --stack-name "fhir-service$smartTag-$stage" \
+                    --change-set-name "UpdateChangeSet" \
+                    --change-set-type "UPDATE" \
+                    --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
+                    --capabilities "CAPABILITY_IAM"
+
+                # wait for changeset to be in a ready state for execution
+                wait_for_cfn_changeset "UpdateChangeSet" "AVAILABLE"
+                
+                # execute changeset
+                echo "executing cloudformation changeset to remove private API gateway resources w/o physical IDs"
+                aws cloudformation execute-change-set \
+                    --change-set-name "UpdateChangeSet" \
+                    --stack-name "fhir-service$smartTag-$stage"
+
+                # wait for changeset to be executed
+                wait_for_cfn_changeset "UpdateChangeSet" "EXECUTE_COMPLETE"
+            fi
+        done
+    fi
+
+    # check for a deployment w/o private API gateway resource physical IDs
+    if [ "$has_resources" = false ]; then
         echo "existing stack does not have private api gateway resources. starting import..."
 
         # get the private api gateway ID
@@ -403,37 +518,20 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
 
         # create changeset
         aws cloudformation create-change-set \
-            --stack-name fhir-service-dev --change-set-name ImportChangeSet \
-            --change-set-type IMPORT \
+            --stack-name "fhir-service$smartTag-$stage" \
+            --change-set-name "ImportChangeSet" \
+            --change-set-type "IMPORT" \
             --resources-to-import "${RESOURCES_TO_IMPORT}" \
             --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_template.json" \
             --capabilities CAPABILITY_IAM
 
+        
         # wait for changeset to be in a ready state for executeion
-        echo "watiting for changeset to be AVAILABLE"
-        declare +r NUM_RETRIES=20
-        declare +r SLEEP_TIME=3
-        EXECUTION_STATUS=""
-        for (( i=1; i <=NUM_RETRIES; i++))
-        do
-            echo "Polling change-set status for execution status ${EXECUTION_STATUS}"
-
-            EXECUTION_STATUS=$(aws cloudformation describe-change-set \
-                --change-set-name ImportChangeSet \
-                --stack-name "fhir-service-${stage}" \
-            | jq -r '.ExecutionStatus')
-
-            if [ "${EXECUTION_STATUS}" == "AVAILABLE" ]; then
-                echo "change-set ready for execution"
-                break
-            else
-                echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
-                sleep ${SLEEP_TIME}s
-            fi
-        done
-
+        wait_for_cfn_changeset "ImportChangeSet" "AVAILABLE"
+        
         # execute changeset
         aws cloudformation execute-change-set --change-set-name ImportChangeSet --stack-name "fhir-service-${stage}"
+        wait_for_cfn_changeset "ImportChangeSet" "EXECUTE_COMPLETE"
 
         # curse cloudformation's name
         # cfn!??!?!
@@ -441,18 +539,6 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "Already imported private API gateway methods and resources"
     fi  
 fi 
-
-IAMUserARN=$(aws sts get-caller-identity --query "Arn" --output text)
-
-#TODO: how to stop if not all test cases passed?
-cd ${PACKAGE_ROOT}
-yarn install --frozen-lockfile
-yarn run release
-
-touch serverless_config.json
-if ! grep -Fq "devAwsUserAccountArn" serverless_config.json; then
-    echo -e "{\n  \"devAwsUserAccountArn\": \"$IAMUserARN\"\n}" >> serverless_config.json
-fi
 
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
