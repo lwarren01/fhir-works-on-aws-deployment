@@ -207,6 +207,7 @@ function wait_for_cfn_changeset(){
             if [ "$status" == "FAILED" ]; then
                 status_reason=$(cat /tmp/execution_status.json | jq -r '.StatusReason')
                 echo "changeset failed with $status_reason"
+                exit 1
             else
                 echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
                 sleep ${SLEEP_TIME}s
@@ -493,6 +494,11 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         if [ "$has_resources" = false ]; then
             # need to update the cfn template to no longer include the resources w/o physical IDs so we can import
             echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
+
+            # so cfn is dumb like really dumb the kind of dumb that when you ask it 1+1 it answers with "hamburger"
+            # it doesn't recognize logical resources w/o physical IDs as changed if they are removed so I guess
+            # we'll add a tag to the private API gateway so it finds a change and rewrites the whole template
+            cat /tmp/fhir_service_template.json | jq -r -e '.Resources.FHIRServicePrivate.Properties +={"Tags":[{"Key":"cfn","Value":"sucks"}]}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
             cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_update_template.json"
             aws s3 cp \
                 "/tmp/fhir_service_update_template.json" \
