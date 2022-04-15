@@ -471,7 +471,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
             has_resource=$(cat /tmp/fhir_service_template.json | jq -e -r --arg resource_id "$i" '.Resources | has($resource_id)')
             if [ "$has_resource" = true ]; then
                 resource_description=$(cat /tmp/stack_descriptions.json | jq -e -r --arg resource_id "$i" '.StackResources[] | select(.LogicalResourceId == $resource_id)')
-                if [ "$resource_description" != "" ]; then
+                if [ "$resource_description" = "" ]; then
                     # we need to remove the resources from the template for import
 
                     echo "found private API gateway resource $i without a physical ID"
