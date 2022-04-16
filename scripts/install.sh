@@ -186,12 +186,19 @@ function wait_for_cfn_changeset(){
     
     # wait for changeset to be in a ready state for executeion
     echo "watiting for changeset to be $state"
-    declare +r NUM_RETRIES=40
+    declare +r NUM_RETRIES=100
     declare +r SLEEP_TIME=3
     execution_status=""
     for (( i=1; i <=NUM_RETRIES; i++))
     do
         echo "Polling change-set status for execution status ${execution_status}"
+
+        aws cloudformation list-change-sets --stack-name "fhir-service$smartTag-$stage" > /tmp/change_sets.json
+        change_set=$(cat /tmp/change_sets.json | jq -e -r --arg change_set_name "$change_set_name" '.Summaries[] | select(.ChangeSetName == $change_set_name)')
+        if [ "$change_set" = "" ]; then
+            echo "change set not found - could be completed or deleted"
+            break
+        fi
 
         aws cloudformation describe-change-set \
             --change-set-name "$change_set_name" \
@@ -533,7 +540,8 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "existing stack does not have private api gateway resources. starting import..."
 
         # get the private api gateway ID
-        PRIVATE_API_GATEWAY_ID=$(aws apigateway get-rest-apis | jq -r --arg private_ag_name "${stage}-fhir-service-private" '.items[] | select(.name == $private_ag_name) |  .id' )
+        aws cloudformation describe-stack-resources --stack-name "fhir-service$smartTag-$stage" > /tmp/stack_descriptions.json
+        PRIVATE_API_GATEWAY_ID=$(cat /tmp/stack_descriptions.json | jq -e -r --arg resource_id "FHIRServicePrivate" '.StackResources[] | select(.LogicalResourceId == $resource_id) | .PhysicalResourceId')
 
         # get the resource IDs for root, metadata and {proxy+}
         PRIVATE_API_GATEWAY_ROOT_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/") | .id')
