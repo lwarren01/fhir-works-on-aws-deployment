@@ -565,7 +565,7 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "uploading new cloudformation template to s3"
         cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_import_template.json"
         aws s3 cp \
-            "/tmp/fhir_service_template.json" 
+            "/tmp/fhir_service_template.json" \
             "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
 
         # create resources to import document
