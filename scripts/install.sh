@@ -496,8 +496,8 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
             echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
 
             # so cfn is dumb like really dumb the kind of dumb that when you ask it 1+1 it answers with "hamburger"
-            # it doesn't recognize logical resources w/o physical IDs as changed if they are removed so I guess
-            # we'll add a tag to the private API gateway so it finds a change and rewrites the whole template
+            # it doesn't recognize logical resources w/o physical IDs as changed if they are removed so the only way
+            # to get the new template loaded is to change another resource so adding a tag to the private api gateway
             cat /tmp/fhir_service_template.json | jq -r -e '.Resources.FHIRServicePrivate.Properties +={"Tags":[{"Key":"cfn","Value":"sucks"}]}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
             cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_update_template.json"
             aws s3 cp \
@@ -506,24 +506,25 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
 
             # create update changeset
             echo "creating cloudformation changeset to remove private API gateway resources w/o physical IDs"
+            update_changeset_name="updateChangeset$RANDOM"
             aws cloudformation create-change-set \
                 --stack-name "fhir-service$smartTag-$stage" \
-                --change-set-name "UpdateChangeSet" \
+                --change-set-name "$update_changeset_name" \
                 --change-set-type "UPDATE" \
                 --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_update_template.json" \
-                --capabilities "CAPABILITY_IAM"
+                --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM"
 
             # wait for changeset to be in a ready state for execution
-            wait_for_cfn_changeset "UpdateChangeSet" "AVAILABLE"
+            wait_for_cfn_changeset "$update_changeset_name" "AVAILABLE"
             
             # execute changeset
             echo "executing cloudformation changeset to remove private API gateway resources w/o physical IDs"
             aws cloudformation execute-change-set \
-                --change-set-name "UpdateChangeSet" \
+                --change-set-name "$update_changeset_name" \
                 --stack-name "fhir-service$smartTag-$stage"
 
             # wait for changeset to be executed
-            wait_for_cfn_changeset "UpdateChangeSet" "EXECUTE_COMPLETE"
+            wait_for_cfn_changeset "$update_changeset_name" "EXECUTE_COMPLETE"
         fi
     fi
 
@@ -571,20 +572,24 @@ if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
         echo "${RESOURCES_TO_IMPORT}"
 
         # create changeset
+        import_changeset_name="importChangeset$RANDOM"
         aws cloudformation create-change-set \
             --stack-name "fhir-service$smartTag-$stage" \
-            --change-set-name "ImportChangeSet" \
+            --change-set-name "$import_changeset_name" \
             --change-set-type "IMPORT" \
             --resources-to-import "${RESOURCES_TO_IMPORT}" \
             --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_import_template.json" \
-            --capabilities "CAPABILITY_IAM"
+            --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM"
         
         # wait for changeset to be in a ready state for executeion
-        wait_for_cfn_changeset "ImportChangeSet" "AVAILABLE"
+        wait_for_cfn_changeset "$import_changeset_name" "AVAILABLE"
         
         # execute changeset
-        aws cloudformation execute-change-set --change-set-name ImportChangeSet --stack-name "fhir-service$smartTag-$stage"
-        wait_for_cfn_changeset "ImportChangeSet" "EXECUTE_COMPLETE"
+        aws cloudformation execute-change-set \
+            --change-set-name "$import_changeset_name" \
+            --stack-name "fhir-service$smartTag-$stage"
+
+        wait_for_cfn_changeset "$import_changeset_name" "EXECUTE_COMPLETE"
 
         # curse cloudformation's name
         # cfn!??!?!
