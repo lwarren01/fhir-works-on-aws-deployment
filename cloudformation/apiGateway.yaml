@@ -34,6 +34,22 @@ Resources:
       - FHIRServicePrivate
       - FhirServerLambdaFunction
       - FhirServerProvConcLambdaAlias
+      # start of cloneFrom = "" dependsOn
+      - FHIRServicePrivateApiGatewayMethodAny
+      - FHIRServicePrivateApiGatewayResourceMetadata
+      - FHIRServicePrivateApiGatewayMethodMetadataGet
+      - FHIRServicePrivateApiGatewayResourceWellDashknown
+      - FHIRServicePrivateApiGatewayResourceWellDashknownSmartDashconfiguration
+      - FHIRServicePrivateApiGatewayMethodWellDashknownSmartDashconfigurationGet
+      - FHIRServicePrivateApiGatewayResourceTenant
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVar
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVarMetadata
+      - FHIRServicePrivateApiGatewayMethodTenantTenantidVarMetadataGet
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknown
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknownSmartDashconfiguration
+      - FHIRServicePrivateApiGatewayMethodTenantTenantidVarWellDashknownSmartDashconfigurationGet
+      - FHIRServicePrivateApiGatewayResourceProxyVar
+      - FHIRServicePrivateApiGatewayMethodProxyVarAny
     Properties: 
       RestApiId: !Ref FHIRServicePrivate
       StageName: !Ref Stage
