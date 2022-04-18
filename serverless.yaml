@@ -87,7 +87,7 @@ provider:
     ENABLE_MULTI_TENANCY: !Ref EnableMultiTenancy
     LOG_LEVEL: '${self:custom.logLevel}'
     AWS_XRAY_CONTEXT_MISSING: 'IGNORE_ERROR'
-    NODE_DEBUG: 'http,https'
+    NODE_DEBUG: ''
   apiGateway:
     metrics: ${self:custom.apigatewayMetricsEnabled}
   apiKeys:
