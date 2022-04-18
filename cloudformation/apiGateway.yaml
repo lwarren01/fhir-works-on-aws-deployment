@@ -15,7 +15,7 @@ Resources:
     Properties:
       Name: !Join ['-', [!Ref Stage, 'fhir', 'service', 'smart', 'private']]
       Description: "Private fwoa FHIR API Server"
-      CloneFrom: !Ref ApiGatewayRestApi
+      CloneFrom: !If [isImportingPrivateApi, !Ref ApiGatewayRestApi, ""]
       EndpointConfiguration:
         Types:
           - PRIVATE
@@ -139,13 +139,10 @@ Resources:
 
   #####
   # So, API Gateway's cloneFrom parameter is only available in the create API and not the update API so the public API gateway
-  # and the private API gateway are not automatically kept in sync. Here's how we plan on proceeding to do no downtime deployments
-  # short term, add the missing routes and create a new stage deployment to link up with the new smart lambda
-
+  # and the private API gateway are not automatically kept in sync.
   # /*
   FHIRServicePrivateApiGatewayMethodAny:
     Type: AWS::ApiGateway::Method
-    Condition: isImportingPrivateApi
     Properties:
       HttpMethod: ANY
       RequestParameters: {}
@@ -174,14 +171,12 @@ Resources:
   # /metadata
   FHIRServicePrivateApiGatewayResourceMetadata:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
       PathPart: metadata
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayMethodMetadataGet:
     Type: AWS::ApiGateway::Method
-    Condition: isImportingPrivateApi
     Properties:
       HttpMethod: GET
       RequestParameters: {}
@@ -215,21 +210,18 @@ Resources:
   # /.well-known/*
   FHIRServicePrivateApiGatewayResourceWellDashknown:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
       PathPart: .well-known
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayResourceWellDashknownSmartDashconfiguration:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceWellDashknown'
       PathPart: smart-configuration
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayMethodWellDashknownSmartDashconfigurationGet:
     Type: AWS::ApiGateway::Method
-    Condition: isImportingPrivateApi
     Properties:
       HttpMethod: GET
       RequestParameters: {}
@@ -258,28 +250,24 @@ Resources:
   # /tenant/*
   FHIRServicePrivateApiGatewayResourceTenant:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
       PathPart: tenant
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayResourceTenantTenantidVar:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenant'
       PathPart: '{tenantId}'
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayResourceTenantTenantidVarMetadata:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVar'
       PathPart: metadata
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayMethodTenantTenantidVarMetadataGet:
     Type: AWS::ApiGateway::Method
-    Condition: isImportingPrivateApi
     Properties:
       HttpMethod: GET
       RequestParameters: {}
@@ -306,21 +294,18 @@ Resources:
       - FHIRServicePrivateLambdaPermission
   FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknown:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVar'
       PathPart: .well-known
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknownSmartDashconfiguration:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknown'
       PathPart: smart-configuration
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayMethodTenantTenantidVarWellDashknownSmartDashconfigurationGet:
     Type: AWS::ApiGateway::Method
-    Condition: isImportingPrivateApi
     Properties:
       HttpMethod: GET
       RequestParameters: {}
@@ -349,14 +334,12 @@ Resources:
   # /{proxy+}
   FHIRServicePrivateApiGatewayResourceProxyVar:
     Type: AWS::ApiGateway::Resource
-    Condition: isImportingPrivateApi
     Properties:
       ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
       PathPart: '{proxy+}'
       RestApiId: !Ref 'FHIRServicePrivate'
   FHIRServicePrivateApiGatewayMethodProxyVarAny:
     Type: AWS::ApiGateway::Method
-    Condition: isImportingPrivateApi
     Properties:
       HttpMethod: ANY
       RequestParameters: {}
