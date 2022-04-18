@@ -124,7 +124,9 @@ Resources:
        Format: ${self:provider.logs.restApi.format}
       TracingEnabled: ${self:provider.tracing.apiGateway}
       MethodSettings:
-        - MetricsEnabled: true
+        - ResourcePath: "/*/*/"
+          MetricsEnabled: true
+
   FHIRServicePrivateApiGatewayMethodAny:
     Type: AWS::ApiGateway::Method
     Properties:
