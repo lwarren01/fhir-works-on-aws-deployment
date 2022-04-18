@@ -35,6 +35,7 @@ Resources:
       - FhirServerLambdaFunction
       - FhirServerProvConcLambdaAlias
       # start of cloneFrom = "" dependsOn
+      - FHIRServicePrivateStage
       - FHIRServicePrivateApiGatewayMethodAny
       - FHIRServicePrivateApiGatewayResourceMetadata
       - FHIRServicePrivateApiGatewayMethodMetadataGet
