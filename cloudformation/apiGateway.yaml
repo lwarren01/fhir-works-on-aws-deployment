@@ -35,7 +35,6 @@ Resources:
       - FhirServerLambdaFunction
       - FhirServerProvConcLambdaAlias
       # start of cloneFrom = "" dependsOn
-      - FHIRServicePrivateStage
       - FHIRServicePrivateApiGatewayMethodAny
       - FHIRServicePrivateApiGatewayResourceMetadata
       - FHIRServicePrivateApiGatewayMethodMetadataGet
@@ -53,7 +52,7 @@ Resources:
       - FHIRServicePrivateApiGatewayMethodProxyVarAny
     Properties: 
       RestApiId: !Ref FHIRServicePrivate
-      StageName: !Ref Stage
+      #StageName: !Ref Stage
       Description: !Sub 'Private API Gateway for ${Stage}'
 
   FHIRServicePrivateLambdaPermission:
