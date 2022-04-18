@@ -85,6 +85,7 @@ Resources:
     Condition: isUsingPrivateApi
     DependsOn:
       - FHIRServiceStageDeployment
+      - FHIRServicePrivateStage
     Properties: 
       ApiStages: 
         - ApiId: !Ref FHIRServicePrivate
