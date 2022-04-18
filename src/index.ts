@@ -49,9 +49,7 @@ const serverlessHandler: Promise<any> = asyncServerless();
 exports.handler = async (event: any = {}, context: any = {}): Promise<any> => {
     console.log('event', JSON.stringify(event, null, 2));
     console.log('context', JSON.stringify(event, null, 2));
-
     await ensureAsyncInit(serverlessHandler);
-
     console.log('start: handling request');
     const result = (await serverlessHandler)(event, context);
     console.log('end: handling requests');
