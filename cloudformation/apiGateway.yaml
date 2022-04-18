@@ -54,55 +54,6 @@ Resources:
       RestApiId: !Ref FHIRServicePrivate
       StageName: !Ref Stage
       Description: !Sub 'Private API Gateway for ${Stage}'
-      #StageDescription:
-      #  AccessLogSetting:
-      #    DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-      #    Format: ${self:provider.logs.restApi.format}
-      #  TracingEnabled: ${self:provider.tracing.apiGateway}
-        # the below */* method settings are explicitly being set by serverless
-        # however defaults match in API gateway and for an unknnown reason 
-        # serverless deploy is failing when setting them
-        #MethodSettings:
-        #  - CacheDataEncrypted: true
-        #    CacheTtlInSeconds: '300'
-        #    CachingEnabled: false
-        #    DataTraceEnabled: true
-        #    HttpMethod: "*"
-        #    LoggingLevel: "OFF"
-        #    MetricsEnabled: false
-        #    ResourcePath: "*"
-        #    ThrottlingBurstLimit: '5000'
-        #    ThrottlingRateLimit: '10000.0'
-
-  #FHIRServicePrivateStage:
-  #  Type: AWS::ApiGateway::Stage
-  #  Condition: isUsingPrivateApi
-  #  DependsOn:
-  #    - FHIRServicePrivate
-  #    - FhirServerLambdaFunction
-  #    - FhirServerProvConcLambdaAlias
-  #    - FHIRServiceStageDeployment
-  #  Properties:
-  #    RestApiId: !Ref FHIRServicePrivate
-  #    StageName: !Ref Stage
-  #    DeploymentId: !Ref FHIRServiceStageDeployment
-  #    AccessLogSetting:
-  #     DestinationArn: !GetAtt FHIRLogsBucket.Arn
-  #     Format: ${self:provider.logs.restApi.format}
-  #    TracingEnabled: ${self:provider.tracing.apiGateway}
-
-  #FHIRServicePrivateLambdaPermission:
-  #  Type: AWS::Lambda::Permission
-  #  Condition: isUsingPrivateApi
-  #  DependsOn:
-  #    - FHIRServicePrivate
-  #    - FhirServerLambdaFunction
-  #    - FhirServerProvConcLambdaAlias
-  #  Properties:
-  #    Action: "lambda:InvokeFunction"
-  #    FunctionName: !Ref FhirServerProvConcLambdaAlias
-  #    Principal: "apigateway.amazonaws.com"
-  #    SourceArn: !Join ['', ['arn:', !Sub "${AWS::Partition}", ':execute-api:', !Sub "${AWS::Region}", ':', !Sub "${AWS::AccountId}", ':', !Ref FHIRServicePrivate, '/*/*']]
 
   FHIRServicePrivateLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -157,6 +108,23 @@ Resources:
   # So, API Gateway's cloneFrom parameter is only available in the create API and not the update API so the public API gateway
   # and the private API gateway are not automatically kept in sync.
   # /*
+  FHIRServicePrivateStage:
+    Type: AWS::ApiGateway::Stage
+    DependsOn:
+      - FHIRServicePrivate
+      - FhirServerLambdaFunction
+      - FhirServerProvConcLambdaAlias
+      - FHIRServiceStageDeployment
+    Properties:
+      RestApiId: !Ref FHIRServicePrivate
+      StageName: !Ref Stage
+      DeploymentId: !Ref FHIRServiceStageDeployment
+      AccessLogSetting:
+       DestinationArn: !GetAtt FHIRLogsBucket.Arn
+       Format: ${self:provider.logs.restApi.format}
+      TracingEnabled: ${self:provider.tracing.apiGateway}
+      MethodSettings:
+        - MetricsEnabled: true
   FHIRServicePrivateApiGatewayMethodAny:
     Type: AWS::ApiGateway::Method
     Properties:
