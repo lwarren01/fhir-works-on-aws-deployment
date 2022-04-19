@@ -129,6 +129,8 @@ Resources:
         - ResourcePath: "/*"
           HttpMethod: "*"
           MetricsEnabled: true
+          LoggingLevel: "OFF"
+          DataTraceEnabled: true
 
   FHIRServicePrivateApiGatewayMethodAny:
     Type: AWS::ApiGateway::Method
