@@ -126,7 +126,8 @@ Resources:
        Format: ${self:provider.logs.restApi.format}
       TracingEnabled: ${self:provider.tracing.apiGateway}
       MethodSettings:
-        - ResourcePath: "/"
+        - ResourcePath: "/*"
+          HttpMethod: "*"
           MetricsEnabled: true
 
   FHIRServicePrivateApiGatewayMethodAny:
