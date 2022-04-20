@@ -23,7 +23,10 @@ function usage(){
     echo "    --issuerEndpoint (-i): This is the endpoint that mints the access_tokens and will also be the issuer in the access_token as well."
     echo "    --oAuth2ApiEndpoint (-o): this is probably similar to your issuer endpoint but is the prefix to all OAuth2 APIs"
     echo "    --patientPickerEndpoint (-p): SMART on FHIR supports launch contexts and that will typically include a patient picker application that will proxy the /token and /authorize requests."
-    echo "    --lambdaLatencyThreshold: lambda latency threshold in ms (Default: 3000) "
+    echo "    --apigatewayMetricsEnabled: Is API gateway metics enabled for this FHIR Works instance (Default: false)"
+    echo "    --alarmSubscriptionEndpoint: The HTTPS endpoint to be configured as a subscriber on the CloudWatch Alarm SNS Topic."
+    echo "    --lambdaLatencyThreshold: lambda latency threshold in ms (Default: 3000)"
+    echo "    --apigatewayLatencyThreshold: apigateway latency threshold in ms (Default: 500)"
     echo "    --apigatewayServerErrorThreshold: API gateway 5xxerror threshold (Default: 3)"
     echo "    --apigatewayClientErrorThreshold: API gateway 4xxerror threshold (Default: 5)"
     echo "    --lambdaErrorThreshold: lambda error latency threshold (Default: 1)"
@@ -175,6 +178,51 @@ function get_valid_pass(){
     echo "$s1"
 }
 
+#Function to wait for cfn to change state
+#Usage: wait_for_cfn_changeset "ImportChangeSet" "AVAILABLE"
+function wait_for_cfn_changeset(){
+    change_set_name="$1"
+    state="$2"
+    
+    # wait for changeset to be in a ready state for executeion
+    echo "watiting for changeset to be $state"
+    declare +r NUM_RETRIES=100
+    declare +r SLEEP_TIME=3
+    execution_status=""
+    for (( i=1; i <=NUM_RETRIES; i++))
+    do
+        echo "Polling change-set status for execution status ${execution_status}"
+
+        aws cloudformation list-change-sets --stack-name "fhir-service$smartTag-$stage" > /tmp/change_sets.json
+        change_set=$(cat /tmp/change_sets.json | jq -e -r --arg change_set_name "$change_set_name" '.Summaries[] | select(.ChangeSetName == $change_set_name)')
+        if [ "$change_set" = "" ]; then
+            echo "change set not found - could be completed or deleted"
+            break
+        fi
+
+        aws cloudformation describe-change-set \
+            --change-set-name "$change_set_name" \
+            --stack-name "fhir-service$smartTag-$stage" > /tmp/execution_status.json
+        
+        status=$(cat /tmp/execution_status.json | jq -r '.Status')
+        execution_status=$(cat /tmp/execution_status.json | jq -r '.ExecutionStatus')
+
+        if [ "${execution_status}" == "$state" ]; then
+            echo "change-set in $state"
+            break
+        else
+            if [ "$status" == "FAILED" ]; then
+                status_reason=$(cat /tmp/execution_status.json | jq -r '.StatusReason')
+                echo "changeset failed with $status_reason"
+                exit 1
+            else
+                echo " ${SLEEP_TIME} seconds. Attempt ${i}/${NUM_RETRIES}..."
+                sleep ${SLEEP_TIME}s
+            fi
+        fi
+    done
+}
+
 #Change directory to that of the script (in case someone calls it from another folder)
 cd "${0%/*}"
 # Save parent directory
@@ -193,10 +241,13 @@ patientPickerEndpoint="undefined"
 stage="dev"
 region="us-west-2"
 lambdaLatencyThreshold=3000
+apigatewayMetricsEnabled=false
+apigatewayLatencyThreshold=500
 apigatewayServerErrorThreshold=3
 apigatewayClientErrorThreshold=5
 lambdaErrorThreshold=1
 ddbToESLambdaErrorThreshold=1
+alarmSubscriptionEndpoint="undefined"
 
 #Parse commandline args
 while [ "$1" != "" ]; do
@@ -216,8 +267,17 @@ while [ "$1" != "" ]; do
         -r | --region )                             shift
                                                     region=$1
                                                     ;;
+        --alarmSubscriptionEndpoint )               shift
+                                                    alarmSubscriptionEndpoint=$1
+                                                    ;;
         --lambdaLatencyThreshold )                  shift
                                                     lambdaLatencyThreshold=$1
+                                                    ;;
+        --apigatewayMetricsEnabled )                shift
+                                                    apigatewayMetricsEnabled=$1
+                                                    ;;
+        --apigatewayLatencyThreshold )              shift
+                                                    apigatewayLatencyThreshold=$1
                                                     ;;
         --apigatewayServerErrorThreshold )          shift
                                                     apigatewayServerErrorThreshold=$1
@@ -261,7 +321,7 @@ fi
 
 #Check to make sure the server isn't already deployed
 already_deployed=false
-redep=`aws cloudformation describe-stacks --stack-name fhir-service-smart-$stage --region $region --output text 2>&1` && already_deployed=true
+redep=`aws cloudformation describe-stacks --stack-name "fhir-service$smartTag-$stage" --region $region --output text 2>&1` && already_deployed=true
 if $already_deployed; then
     if `echo "$redep" | grep -Fxq "DELETE_FAILED"`; then
         fail=true
@@ -294,11 +354,15 @@ echo "  Patient Picker Endpoint: $patientPickerEndpoint"
 echo "  Stage: $stage"
 echo "  Region: $region"
 echo "  lambdaLatencyThreshold: $lambdaLatencyThreshold"
+echo "  apigatewayMetricsEnabled: $apigatewayMetricsEnabled"
+echo "  apigatewayLatencyThreshold: $apigatewayLatencyThreshold"
 echo "  apigatewayServerErrorThreshold: $apigatewayServerErrorThreshold"
 echo "  apigatewayClientErrorThreshold: $apigatewayClientErrorThreshold"
 echo "  lambdaErrorThreshold: $lambdaErrorThreshold"
 echo "  ddbToESLambdaErrorThreshold: $ddbToESLambdaErrorThreshold"
+echo "  alarmSubscriptionEndpoint: $alarmSubscriptionEndpoint"
 echo ""
+
 if ! `YesOrNo "Are these settings correct?"`; then
     echo ""
     usage
@@ -336,13 +400,225 @@ if ! grep -Fq "devAwsUserAccountArn" serverless_config.json; then
     echo -e "{\n  \"devAwsUserAccountArn\": \"$IAMUserARN\"\n}" >> serverless_config.json
 fi
 
+# need to import private api gateway resources into cfn
+if [[ "${IMPORT_PRIVATE_API_GATEWAY}" == "true" ]]; then
+    echo "Importing private API gateway resources and methods into the fhir-service$smartTag-$stage cloudformation stack"
+
+    # 4 different states to address here
+    # 1. Fresh install - will not have a cloudformation stack yet and we need to do a serverless deploy w/import = false
+    # 2. version w/o private API gateway - stack will exist but private api gateway resources will not have physical IDs
+    # 3. version w/private API - stack will exist but private API gateway resource will not exist in stack
+    # 4. already imported - stack will exist, resources will exist and have both logical and physical IDs
+    
+    # check for fresh install
+    stack_exists=$(aws cloudformation list-stacks | jq -e -r --arg stack_name "fhir-service$smartTag-$stage" '.StackSummaries[] | select(.StackName == $stack_name and .StackStatus != "DELETE_COMPLETE" and .StackStatus != "DELETE_IN_PROGRESS") | has("StackId")')
+    if [ "$stack_exists" != true ]; then
+        # okay so a fresh install will need the stack deployed w/import = false to do the initial cloneFrom
+        
+        echo "Fresh install so creating private API gateway using cloneFrom"
+        echo "starting cloneFrom deploy...."
+        LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+        APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+        APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+        APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+        LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+        DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+        ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+        APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
+        ENABLE_PRIVATE_API_GATEWAY="true" \
+        IMPORT_PRIVATE_API_GATEWAY="false" \
+        yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+        echo "completed cloneFrom deploy...."
+    else
+        echo "found existing deployment, skipping cloneFrom private API gateway serverless deploy"
+    fi
+
+    echo "getting cloud formation template"
+    aws cloudformation get-template --stack-name "fhir-service$smartTag-$stage" | jq '.TemplateBody' > /tmp/fhir_service_template.json
+
+    # check if we've deployed before but w/o a cloneFrom run
+    has_private_api_gateway=$(cat /tmp/fhir_service_template.json | jq -e -r '.Resources | has("FHIRServicePrivate")')
+    if [ "$has_private_api_gateway" != true ]; then
+        echo "existing install but no private API gateway"
+        echo "starting cloneFrom deploy...."
+        LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+        APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+        APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+        APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+        LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+        DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+        ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+        APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
+        ENABLE_PRIVATE_API_GATEWAY="true" \
+        IMPORT_PRIVATE_API_GATEWAY="false" \
+        yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+        echo "completed cloneFrom deploy...."
+    else
+        echo "private api gateway already deployed with cloneFrom"
+    fi
+
+    resources=(
+        "FHIRServicePrivateStage",
+        "FHIRServicePrivateApiGatewayMethodAny"
+        "FHIRServicePrivateApiGatewayResourceMetadata"
+        "FHIRServicePrivateApiGatewayMethodMetadataGet"
+        "FHIRServicePrivateApiGatewayResourceProxyVar"
+        "FHIRServicePrivateApiGatewayMethodProxyVarAny"
+    )
+    has_resources=false
+    echo "checking cloudformation template for private api gateway resources"
+    for i in "${resources[@]}"
+    do
+        has_resource=$(cat /tmp/fhir_service_template.json | jq -e -r --arg resource_id "$i" '.Resources | has($resource_id)')
+        if [ "$has_resource" = true ]; then
+            echo "found private api gateway resource $i in cloudformation template"
+            has_resources=true
+        else
+            echo "did not find private api gateway resource $i in cloudformation template"
+        fi
+    done
+
+    if [ "$has_resources" = true ]; then
+        echo "cloudformation template already contains private API gateway resources. checking if physical IDs exist"
+
+        aws cloudformation describe-stack-resources --stack-name "fhir-service$smartTag-$stage" > /tmp/stack_descriptions.json
+        for i in "${resources[@]}"
+        do
+            has_resource=$(cat /tmp/fhir_service_template.json | jq -e -r --arg resource_id "$i" '.Resources | has($resource_id)')
+            if [ "$has_resource" = true ]; then
+                resource_description=$(cat /tmp/stack_descriptions.json | jq -e -r --arg resource_id "$i" '.StackResources[] | select(.LogicalResourceId == $resource_id)')
+                if [ "$resource_description" = "" ]; then
+                    # we need to remove the resources from the template for import
+
+                    echo "found private API gateway resource $i without a physical ID"
+                    cat /tmp/fhir_service_template.json | jq -r --arg resource_id "$i" 'delpaths([["Resources", $resource_id]])' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+                    has_resources=false
+                else
+                    echo "physical ID found for $i"
+                fi
+            fi
+        done
+
+        if [ "$has_resources" = false ]; then
+            # need to update the cfn template to no longer include the resources w/o physical IDs so we can import
+            echo "uploading new cloudformation template to s3 for update to remove private API gateway resources w/o physical IDs"
+
+            # so cfn is dumb like really dumb the kind of dumb that when you ask it 1+1 it answers with "hamburger"
+            # it doesn't recognize logical resources w/o physical IDs as changed if they are removed so the only way
+            # to get the new template loaded is to change another resource so adding a tag to the private api gateway
+            cat /tmp/fhir_service_template.json | jq -r -e '.Resources.FHIRServicePrivate.Properties +={"Tags":[{"Key":"cfn","Value":"sucks"}]}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+            cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_update_template.json"
+            aws s3 cp \
+                "/tmp/fhir_service_update_template.json" \
+                "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
+
+            # create update changeset
+            echo "creating cloudformation changeset to remove private API gateway resources w/o physical IDs"
+            update_changeset_name="updateChangeset$RANDOM"
+            aws cloudformation create-change-set \
+                --stack-name "fhir-service$smartTag-$stage" \
+                --change-set-name "$update_changeset_name" \
+                --change-set-type "UPDATE" \
+                --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_update_template.json" \
+                --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM"
+
+            # wait for changeset to be in a ready state for execution
+            wait_for_cfn_changeset "$update_changeset_name" "AVAILABLE"
+            
+            # execute changeset
+            echo "executing cloudformation changeset to remove private API gateway resources w/o physical IDs"
+            aws cloudformation execute-change-set \
+                --change-set-name "$update_changeset_name" \
+                --stack-name "fhir-service$smartTag-$stage"
+
+            # wait for changeset to be executed
+            wait_for_cfn_changeset "$update_changeset_name" "EXECUTE_COMPLETE"
+        fi
+    fi
+
+    # check for a deployment w/o private API gateway resource physical IDs
+    if [ "$has_resources" = false ]; then
+        echo "existing stack does not have private api gateway resources. starting import..."
+
+        # get the private api gateway ID
+        aws cloudformation describe-stack-resources --stack-name "fhir-service$smartTag-$stage" > /tmp/stack_descriptions.json
+        PRIVATE_API_GATEWAY_ID=$(cat /tmp/stack_descriptions.json | jq -e -r --arg resource_id "FHIRServicePrivate" '.StackResources[] | select(.LogicalResourceId == $resource_id) | .PhysicalResourceId')
+
+        # get the resource IDs for root, metadata and {proxy+}
+        PRIVATE_API_GATEWAY_ROOT_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/") | .id')
+        PRIVATE_API_GATEWAY_METADATA_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/metadata") | .id')
+        PRIVATE_API_GATEWAY_PROXY_ID=$(aws apigateway get-resources --rest-api-id ${PRIVATE_API_GATEWAY_ID} | jq -r '.items[] | select(.path == "/{proxy+}") | .id')
+
+        echo "found the following IDs:"
+        echo "PRIVATE_API_GATEWAY_ID=${PRIVATE_API_GATEWAY_ID}"
+        echo "PRIVATE_API_GATEWAY_ROOT_ID=${PRIVATE_API_GATEWAY_ROOT_ID}"
+        echo "PRIVATE_API_GATEWAY_METADATA_ID=${PRIVATE_API_GATEWAY_METADATA_ID}"
+        echo "PRIVATE_API_GATEWAY_PROXY_ID=${PRIVATE_API_GATEWAY_PROXY_ID}"
+
+        # need to add the resources we want to import to the template
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceMetadata":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"metadata","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodMetadataGet":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"GET","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceMetadata"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":false,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"],"Metadata":{"cfn_nag":{"rules_to_suppress":[{"id":"W45","reason":"This API endpoint should not require authentication (due to the FHIR spec)"}]}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayResourceProxyVar":{"Type":"AWS::ApiGateway::Resource","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"ParentId":{"Fn::GetAtt":["FHIRServicePrivate","RootResourceId"]},"PathPart":"{proxy+}","RestApiId":{"Ref":"FHIRServicePrivate"}}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateApiGatewayMethodProxyVarAny":{"Type":"AWS::ApiGateway::Method","DeletionPolicy":"Delete","Condition":"isUsingPrivateApi","Properties":{"HttpMethod":"ANY","RequestParameters":{},"ResourceId":{"Ref":"FHIRServicePrivateApiGatewayResourceProxyVar"},"RestApiId":{"Ref":"FHIRServicePrivate"},"ApiKeyRequired":true,"AuthorizationType":"NONE","Integration":{"IntegrationHttpMethod":"POST","Type":"AWS_PROXY","Uri":{"Fn::Join":["",["arn:",{"Ref":"AWS::Partition"},":apigateway:",{"Ref":"AWS::Region"},":lambda:path/2015-03-31/functions/",{"Fn::GetAtt":["FhirServerLambdaFunction","Arn"]},":","provisioned","/invocations"]]}},"MethodResponses":[]},"DependsOn":["FHIRServicePrivateLambdaPermission"]}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+        cat /tmp/fhir_service_template.json | jq -r '.Resources +={"FHIRServicePrivateStage":{"Type":"AWS::ApiGateway::Stage","Condition":"isUsingPrivateApi","DeletionPolicy":"Delete","DependsOn":["FHIRServicePrivate","FhirServerLambdaFunction","FhirServerProvConcLambdaAlias","FHIRServiceStageDeployment"],"Properties":{"RestApiId":{"Ref":"FHIRServicePrivate"},"StageName":{"Ref":"Stage"},"DeploymentId":{"Ref":"FHIRServiceStageDeployment"},"AccessLogSetting":{"DestinationArn":{"Fn::GetAtt":["ApiGatewayLogGroup","Arn"]},"Format":"{\"authorizer.claims.sub\":\"$context.authorizer.claims.sub\",\"error.message\":\"$context.error.message\",\"extendedRequestId\":\"$context.extendedRequestId\",\"httpMethod\":\"$context.httpMethod\",\"identity.sourceIp\":\"$context.identity.sourceIp\",\"integration.error\":\"$context.integration.error\",\"integration.integrationStatus\":\"$context.integration.integrationStatus\",\"integration.latency\":\"$context.integration.latency\",\"integration.requestId\":\"$context.integration.requestId\",\"integration.status\":\"$context.integration.status\",\"path\":\"$context.path\",\"requestId\":\"$context.requestId\",\"responseLatency\":\"$context.responseLatency\",\"responseLength\":\"$context.responseLength\",\"stage\":\"$context.stage\",\"status\":\"$context.status\"}"},"TracingEnabled":true,"MethodSettings":[{"ResourcePath":"/*","HttpMethod":"*","MetricsEnabled":true,"LoggingLevel":"OFF","DataTraceEnabled":true}]}}}' > /tmp/fhir_service_template.json.tmp && mv /tmp/fhir_service_template.json.tmp /tmp/fhir_service_template.json
+
+        # upload template to s3
+        echo "uploading new cloudformation template to s3"
+        cp "/tmp/fhir_service_template.json" "/tmp/fhir_service_import_template.json"
+        aws s3 cp \
+            "/tmp/fhir_service_import_template.json" \
+            "s3://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}/cloudformation_templates/"
+
+        # create resources to import document
+        RESOURCES_TO_IMPORT=$(jq --null-input \
+            --arg private_api_gateway_id "${PRIVATE_API_GATEWAY_ID}" \
+            --arg private_api_gateway_root_id "${PRIVATE_API_GATEWAY_ROOT_ID}" \
+            --arg private_api_gateway_metadata_id "${PRIVATE_API_GATEWAY_METADATA_ID}" \
+            --arg private_api_gateway_proxy_id "${PRIVATE_API_GATEWAY_PROXY_ID}" \
+            --arg stage "$stage" \
+            '[{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodAny","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_root_id,"HttpMethod":"ANY"}},{"ResourceType":"AWS::ApiGateway::Resource","LogicalResourceId":"FHIRServicePrivateApiGatewayResourceMetadata","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_metadata_id}},{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodMetadataGet","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_metadata_id,"HttpMethod":"GET"}},{"ResourceType":"AWS::ApiGateway::Resource","LogicalResourceId":"FHIRServicePrivateApiGatewayResourceProxyVar","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_proxy_id}},{"ResourceType":"AWS::ApiGateway::Method","LogicalResourceId":"FHIRServicePrivateApiGatewayMethodProxyVarAny","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"ResourceId":$private_api_gateway_proxy_id,"HttpMethod":"ANY"}},{"ResourceType":"AWS::ApiGateway::Stage","LogicalResourceId":"FHIRServicePrivateStage","ResourceIdentifier":{"RestApiId":$private_api_gateway_id,"StageName":$stage}}]')
+
+        echo "RESOURCES_TO_IMPORT JSON:"
+        echo "${RESOURCES_TO_IMPORT}"
+
+        # create changeset
+        import_changeset_name="importChangeset$RANDOM"
+        aws cloudformation create-change-set \
+            --stack-name "fhir-service$smartTag-$stage" \
+            --change-set-name "$import_changeset_name" \
+            --change-set-type "IMPORT" \
+            --resources-to-import "${RESOURCES_TO_IMPORT}" \
+            --template-url "https://${IMPORT_PRIVATE_API_GATEWAY_BUCKET}.s3.${region}.amazonaws.com/cloudformation_templates/fhir_service_import_template.json" \
+            --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM"
+        
+        # wait for changeset to be in a ready state for executeion
+        wait_for_cfn_changeset "$import_changeset_name" "AVAILABLE"
+        
+        # execute changeset
+        aws cloudformation execute-change-set \
+            --change-set-name "$import_changeset_name" \
+            --stack-name "fhir-service$smartTag-$stage"
+
+        wait_for_cfn_changeset "$import_changeset_name" "EXECUTE_COMPLETE"
+
+        # curse cloudformation's name
+        # cfn!??!?!
+    else
+        echo "Already imported private API gateway methods and resources"
+    fi  
+fi 
+
 echo -e "\n\nFHIR Works is deploying. A fresh install will take ~20 mins\n\n"
 ## Deploy to stated region
-lambdaLatencyThreshold=$lambdaLatencyThreshold \
-apigatewayServerErrorThreshold=$apigatewayServerErrorThreshold \
-apigatewayClientErrorThreshold=$apigatewayClientErrorThreshold \
-lambdaErrorThreshold=$lambdaErrorThreshold \
-ddbToESLambdaErrorThreshold=$ddbToESLambdaErrorThreshold \
+LAMBDA_LATENCY_THRESHOLD=$lambdaLatencyThreshold \
+APIGATEWAY_LATENCY_THRESHOLD=$apigatewayLatencyThreshold \
+APIGATEWAY_SERVER_ERROR_THRESHOLD=$apigatewayServerErrorThreshold \
+APIGATEWAY_CLIENT_ERROR_THRESHOLD=$apigatewayClientErrorThreshold \
+LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
+DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
+ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
+APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
 yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
@@ -406,6 +682,7 @@ echo ""
 if `YesOrNo "Would you like to set the server to archive logs older than 7 days?"`; then
     cd ${PACKAGE_ROOT}/auditLogMover
     yarn install --frozen-lockfile
+    ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
     yarn run serverless-deploy --region $region --stage $stage
     cd ${PACKAGE_ROOT}
     echo -e "\n\nSuccess."

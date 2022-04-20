@@ -8,6 +8,8 @@ service: audit-log-mover
 custom:
   stage: ${opt:stage, self:provider.stage}
   region: ${opt:region, self:provider.region}
+  alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT, ''}
+  fhirWorksAlarmSNSTopicARN: !ImportValue FhirWorksAlarmSNSTopicARN
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -77,6 +79,8 @@ stepFunctions:
             End: true
 
 resources:
+  Conditions:
+    isAlarmSubscriptionEnabled: !Not [!Equals ['${self:custom.alarmSubscriptionEndpoint}', '']]
   Resources:
     AuditLogsBucket:
       Type: AWS::S3::Bucket
@@ -129,7 +133,7 @@ resources:
       Properties:
         AlarmDescription: Alarm when there is a exportCloudwatchLogs-Failure'
         AlarmName: FhirSolution.${self:custom.stage}.AuditLogMover.ExportFailureAlarm
-        ActionsEnabled: False
+        ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
         ComparisonOperator: GreaterThanOrEqualToThreshold
         EvaluationPeriods: 1
         MetricName: exportCloudwatchLogs-Failure
@@ -142,6 +146,10 @@ resources:
         Threshold: 1
         TreatMissingData: notBreaching
         Unit: Count
+        OKActions:
+          - ${self:custom.fhirWorksAlarmSNSTopicARN}
+        AlarmActions:
+          - ${self:custom.fhirWorksAlarmSNSTopicARN}
 
     AuditLogMoverDeleteFailureAlarm:
       Type: AWS::CloudWatch::Alarm
@@ -153,7 +161,7 @@ resources:
       Properties:
         AlarmDescription: Alarm when there is a deleteCloudwatchLogs-Failure'
         AlarmName: FhirSolution.${self:custom.stage}.AuditLogMover.DeleteFailureAlarm
-        ActionsEnabled: False
+        ActionsEnabled: !If [isAlarmSubscriptionEnabled, True, False]
         ComparisonOperator: GreaterThanOrEqualToThreshold
         EvaluationPeriods: 1
         MetricName: deleteCloudwatchLogs-Failure
@@ -166,6 +174,10 @@ resources:
         Threshold: 1
         TreatMissingData: notBreaching
         Unit: Count
+        OKActions:
+          - ${self:custom.fhirWorksAlarmSNSTopicARN}
+        AlarmActions:
+          - ${self:custom.fhirWorksAlarmSNSTopicARN}
   Outputs:
     AuditLogsBucket:
       Description: Bucket used for storing past audit logs

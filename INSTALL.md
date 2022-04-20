@@ -145,6 +145,24 @@ container_id=$(docker ps -f "label=install-container" --format "{{.ID}}")
 docker rm ${container_id}
 ```
 
+### Private API Gateway (optional)
+You can optionally have a [private API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-private-apis.html) installed in addition to the standard public edge API gateway. By using a private API Gateway, you are able to connect to the fwoa API internally to the AWS regional network as opposed to making calls through the internet.
+
+To enable a private API gateway, set the environment variable `ENABLE_PRIVATE_API_GATEWAY` to a value of `true`. 
+
+To deploy with a private API (linux/osx):
+```
+ENABLE_PRIVATE_API_GATEWAY=true sudo ./scripts/install.sh --region <REGION> --stage <STAGE>
+```
+
+To manually deploy with a private API (linux/osx). 
+```
+ENABLE_PRIVATE_API_GATEWAY=true serverless deploy --region <REGION> --stage <STAGE>
+```
+
+```
+ENABLE_PRIVATE_API_GATEWAY=true .\scripts\win_install.ps1 -Region <REGION> -Stage <STAGE>
+
 ### Known installation issues
 
 - Installation can fail if your computer already possesses an installation of Python 3 earlier than version 3.3.x.

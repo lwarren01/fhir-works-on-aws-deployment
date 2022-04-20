@@ -12,20 +12,31 @@ custom:
   exportRequestTableJobStatusIndex: 'jobStatus-index'
   stage: ${opt:stage, self:provider.stage}
   region: ${opt:region, self:provider.region}
-  lambdaLatencyThreshold: ${env:lambdaLatencyThreshold}
-  apigatewayServerErrorThreshold: ${env:apigatewayServerErrorThreshold}
-  apigatewayClientErrorThreshold: ${env:apigatewayClientErrorThreshold}
-  lambdaErrorThreshold: ${env:lambdaErrorThreshold}
-  ddbToESLambdaErrorThreshold: ${env:ddbToESLambdaErrorThreshold}
+  lambdaLatencyThreshold: ${env:LAMBDA_LATENCY_THRESHOLD, '3000'}
+  apigatewayLatencyThreshold: ${env:APIGATEWAY_LATENCY_THRESHOLD, '500'}
+  apigatewayServerErrorThreshold: ${env:APIGATEWAY_SERVER_ERROR_THRESHOLD, '3'}
+  apigatewayClientErrorThreshold: ${env:APIGATEWAY_CLIENT_ERROR_THRESHOLD, '5'}
+  lambdaErrorThreshold: ${env:LAMBDA_ERROR_THRESHOLD, '1'}
+  ddbToESLambdaErrorThreshold: ${env:DDB_TO_ES_LAMBDA_ERROR_THRESHOLD, '1'}
+  alarmSubscriptionEndpoint: ${env:ALARM_SUBSCRIPTION_ENDPOINT, ''}
+  apigatewayMetricsEnabled: ${env:APIGATEWAY_METRICS_ENABLED, 'false'}
+  archiveConfig: ${env:archiveConfig, 'AuditEvent,15778476|Patient,94670856'}
   issuerEndpoint: ${opt:issuerEndpoint}
   oAuth2ApiEndpoint: ${opt:oAuth2ApiEndpoint}
   patientPickerEndpoint: ${opt:patientPickerEndpoint}
   useHapiValidator: ${opt:useHapiValidator, 'false'}
   enableMultiTenancy: ${opt:enableMultiTenancy, 'false'}
-  logLevel: ${opt:logLevel, 'error'}
+  logLevel: ${opt:logLevel, env:LOG_LEVEL, 'error'}
   enableESHardDelete: ${opt:enableESHardDelete, 'false'}
   patientCompartmentFileV3: 'patientCompartmentSearchParams.3.0.2.json'
   patientCompartmentFileV4: 'patientCompartmentSearchParams.4.0.1.json'
+  serviceNameSuffix: ${env:SERVICE_NAME_SUFFIX, '-smart-'}
+  cognitoRewriteEnabled: ${env:COGNITO_REWRITE_ENABLED, 'true'}
+  cognitoValidateOktaToken: ${env:COGNITO_VALIDATE_OKTA_TOKEN, 'true'}
+  cognitoUsername: ${env:COGNITO_USERNAME, ''}
+  enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
+  enablePrivateAPIGateway: ${env:ENABLE_PRIVATE_API_GATEWAY, 'true'}
+  importPrivateAPIGateway: ${env:IMPORT_PRIVATE_API_GATEWAY, 'false'}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -40,7 +51,8 @@ custom:
         to: './bulkExport/schema/${self:custom.patientCompartmentFileV4}'
       - from: 'compiledImplementationGuides/*'
         to: './'
-
+      - from: 'synthetics/metadata.js'
+        to: './synthetics/metadata.js'
 provider:
   name: aws
   region: us-west-2
@@ -49,6 +61,7 @@ provider:
   architecture: x86_64
   memorySize: 512
   logRetentionInDays: 3653 # 10 years
+  stackName: fhir-service${self:custom.serviceNameSuffix}${self:custom.stage}
   stackTags:
     FHIR_SERVICE: 'fhir-service-smart-${self:custom.region}-${self:custom.stage}'
   environment:
@@ -74,6 +87,8 @@ provider:
     ENABLE_MULTI_TENANCY: !Ref EnableMultiTenancy
     LOG_LEVEL: '${self:custom.logLevel}'
     AWS_XRAY_CONTEXT_MISSING: 'IGNORE_ERROR'
+  apiGateway:
+    metrics: ${self:custom.apigatewayMetricsEnabled}
   apiKeys:
     - name: 'developer-key-${self:custom.stage}' # Full name must be known at package-time
       description: Key for developer to access the FHIR Api
@@ -85,6 +100,8 @@ provider:
     restApi:
       format: '{"authorizer.claims.sub":"$context.authorizer.claims.sub","error.message":"$context.error.message","extendedRequestId":"$context.extendedRequestId","httpMethod":"$context.httpMethod","identity.sourceIp":"$context.identity.sourceIp","integration.error":"$context.integration.error","integration.integrationStatus":"$context.integration.integrationStatus","integration.latency":"$context.integration.latency","integration.requestId":"$context.integration.requestId","integration.status":"$context.integration.status","path":"$context.path","requestId":"$context.requestId","responseLatency":"$context.responseLatency","responseLength":"$context.responseLength","stage":"$context.stage","status":"$context.status"}'
       executionLogging: false
+      role: !GetAtt ApiGatewayRestApiCloudwatchLogsCustomRole.Arn
+      roleManagedExternally: true
   tracing:
     apiGateway: true
     lambda: true
@@ -121,7 +138,13 @@ functions:
       EXPORT_STATE_MACHINE_ARN: !Ref BulkExportStateMachine
       PATIENT_COMPARTMENT_V3: ${self:custom.patientCompartmentFileV3}
       PATIENT_COMPARTMENT_V4: ${self:custom.patientCompartmentFileV4}
-
+      COGNITO_REWRITE_ENABLED: ${self:custom.cognitoRewriteEnabled}
+      COGNITO_JWK_URL: !Join ['', ['https://cognito-idp.', !Sub '${AWS::Region}.amazonaws.com/', !Ref UserPool]]
+      COGNITO_VALIDATE_OKTA_TOKEN: ${self:custom.cognitoValidateOktaToken}
+      COGNITO_USERNAME: ${self:custom.cognitoUsername}
+      ENABLE_DYNAMIC_HOST_NAME: ${self:custom.enableDynamicHostName}
+      API_URL: !Join ['', ['https://', !Ref ApiGatewayRestApi, !Sub '.execute-api.${AWS::Region}.amazonaws.com/', !Ref Stage]]
+    
   ddbToEs:
     timeout: 300
     runtime: nodejs14.x
@@ -148,6 +171,23 @@ functions:
       QUEUE_URL: !Ref DdbToEsDLQ
       DDB_TO_ES_LAMBDA_NAME: '${self:service}-${self:custom.stage}-ddbToEs'
       MAX_NUMBER_OF_MESSAGES_TO_PROCESS: 100
+
+  archiveService:
+    timeout: 60
+    runtime: nodejs14.x
+    description: 'Updates TTL for adding and updating resources. Sends DynamoDB TTL expired records to an AWS Firehose for archiving in s3'
+    role: !GetAtt ArchiveLambdaRole.Arn
+    handler: archiveServiceLambda/index.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt ResourceDynamoDBTableV2.StreamArn
+          batchSize: 15 # Lambda payload size limit ~6MB; DDB row limit ~400KB = 15 items
+          maximumRetryAttempts: 3
+          startingPosition: LATEST
+    environment:
+      ARCHIVE_DELIVERY_STREAM_NAME: !Ref ArchiveDeliveryStream
+      ARCHIVE_CONFIG: ${self:custom.archiveConfig}
 
   startExportJob:
     timeout: 30
@@ -210,6 +250,16 @@ functions:
       ELASTICSEARCH_DOMAIN_ENDPOINT: !Join ['', ['https://', !GetAtt ElasticSearchDomain.DomainEndpoint]]
       NUMBER_OF_SHARDS: !If [isDev, 1, 3] # 133 indices, one per resource types
 
+  uploadSyntheticsScripts:
+    timeout: 30
+    memorySize: 192
+    runtime: nodejs14.x
+    description: 'Upload synthetics scripts to s3'
+    role: UploadSyntheticsScriptsLambdaRole
+    handler: synthetics/uploadSyntheticsScriptsToS3.handler
+    disableLogs: true # needed to avoid race condition error "Resource of type 'AWS::Logs::LogGroup' already exists" since the custom resource lambda invocation may create the log group before CFN does
+    environment:
+      SYNTHETICS_SCRIPTS_BUCKET: !Ref SyntheticsBucket
 stepFunctions:
   stateMachines:
     BulkExportStateMachine: ${file(bulkExport/state-machine-definition.yaml)}
@@ -254,11 +304,29 @@ resources:
           - 'info'
           - 'warn'
           - 'error'
+      EnablePrivateAPIGateway:
+        Type: String
+        Default: ${self:custom.enablePrivateAPIGateway}
+        AllowedValues:
+          - 'true'
+          - 'false'
+        Description: whether or not to create a private API Gateway
+      ImportPrivateAPIGateway:
+        Type: String
+        Default: ${self:custom.importPrivateAPIGateway}
+        AllowedValues:
+          - 'true'
+          - 'false'
   - Conditions:
       isDev: !Equals [!Ref Stage, 'dev']
       isNotDev: !Not [Condition: isDev]
       isUsingHapiValidator: !Equals [!Ref UseHapiValidator, 'true']
       isMultiTenancyEnabled: !Equals [!Ref EnableMultiTenancy, 'true']
+      isAlarmSubscriptionEnabled: !Not [!Equals ['${self:custom.alarmSubscriptionEndpoint}', '']]
+      isUsingPrivateApi: !Equals [!Ref EnablePrivateAPIGateway, 'true']
+      isImportingPrivateApi: !And 
+        - !Condition isUsingPrivateApi
+        - !Equals [!Ref ImportPrivateAPIGateway, 'true']
   - Mappings:
       # For the most up to date ec2 types see: https://aws.amazon.com/opensearch-service/pricing/
       RegionMap:
@@ -362,6 +430,9 @@ resources:
             KMSMasterKeyId: !Ref DynamodbKMSKey
             SSEEnabled: true
             SSEType: 'KMS'
+          TimeToLiveSpecification:
+            AttributeName: '_ttlInSeconds'
+            Enabled: true
           Tags: !If
             - isNotDev
             - - Key: 'backup' # You must also cfn deploy backup.yaml to enable back-ups
@@ -587,6 +658,11 @@ resources:
                       - 'ssm:GetParameter'
                     Resource:
                       - '*'
+                  - Effect: Allow
+                    Action:
+                      - 'ssm:GetParameters'
+                    Resource:
+                      - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${self:custom.stage}/*'
                   - !If
                     - isUsingHapiValidator
                     - Effect: Allow
@@ -830,9 +906,9 @@ resources:
                     iam:PolicyARN: 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
   - extensions:
       # Add custom permission boundary to role serverless uses for creating Cloudwatch publishing role
-      IamRoleCustomResourcesLambdaExecution:
-        Properties:
-          PermissionsBoundary: !Ref ServerlessLogsBoundary
+      #IamRoleCustomResourcesLambdaExecution:
+      #  Properties:
+      #    PermissionsBoundary: !Ref ServerlessLogsBoundary
       DdbToEsEventSourceMappingDynamodbResourceDynamoDBTableV2:
         Properties:
           DestinationConfig:
@@ -884,10 +960,20 @@ resources:
   - ${file(cloudformation/kms.yaml)}
   - ${file(cloudformation/elasticsearch.yaml)}
   - ${file(cloudformation/bulkExport.yaml)}
+  - ${file(cloudformation/cloudwatchDashboard.yaml)}
+  - ${file(cloudformation/cognito.yaml)}
+  - ${file(cloudformation/apiGateway.yaml)}
+  - ${file(cloudformation/synthetics.yaml)}
+  - ${file(cloudformation/archive.yaml)}
   - Outputs:
       FHIRBinaryBucket:
         Description: S3 Bucket for storing Binary Objects
         Value: !Ref FHIRBinaryBucket
+      FhirWorksAlarmSNSTopic:
+        Description: SNS topic for fhirworks alarms
+        Value: !Ref FhirWorksAlarmSNSTopic
+        Export:
+          Name: FhirWorksAlarmSNSTopicARN
       ResourceDynamoDBTableV2Arn:
         Description: DynamoDB table for storing non-Binary resources
         Value: !GetAtt ResourceDynamoDBTableV2.Arn
@@ -951,3 +1037,4 @@ plugins:
   - serverless-step-functions
   - serverless-bundle
   - serverless-offline
+  - serverless-random-gateway-deployment-id

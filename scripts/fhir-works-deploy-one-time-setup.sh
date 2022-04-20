@@ -20,6 +20,7 @@ printf "\nPublish packages to yalc local package registry"
 for i in "${packages[@]}"
 do
     cd $i
+    yarn link fhir-works-on-aws-interface
     yarn install
     yalc publish
     cd ..

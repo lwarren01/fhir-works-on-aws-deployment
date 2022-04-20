@@ -1,0 +1,401 @@
+#
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#  SPDX-License-Identifier: Apache-2.0
+#
+
+Resources:
+  FHIRServicePrivate:
+    Type: AWS::ApiGateway::RestApi
+    Condition: isUsingPrivateApi
+    DependsOn:
+      - ApiGatewayRestApi
+      - ApiGatewayMethodMetadataGet
+      - FhirServerLambdaFunction
+      - FhirServerProvConcLambdaAlias
+    Properties:
+      Name: !Join ['-', [!Ref Stage, 'fhir', 'service', 'smart', 'private']]
+      Description: "Private fwoa FHIR API Server"
+      CloneFrom: !If [isImportingPrivateApi, !Ref ApiGatewayRestApi, ""]
+      EndpointConfiguration:
+        Types:
+          - PRIVATE
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'execute-api:Invoke'
+            Resource: 'execute-api:/*/*/*'
+  
+  FHIRServiceStageDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Condition: isUsingPrivateApi
+    DependsOn:
+      - FHIRServicePrivate
+      - FhirServerLambdaFunction
+      - FhirServerProvConcLambdaAlias
+      # start of cloneFrom = "" dependsOn
+      - FHIRServicePrivateApiGatewayMethodAny
+      - FHIRServicePrivateApiGatewayResourceMetadata
+      - FHIRServicePrivateApiGatewayMethodMetadataGet
+      - FHIRServicePrivateApiGatewayResourceWellDashknown
+      - FHIRServicePrivateApiGatewayResourceWellDashknownSmartDashconfiguration
+      - FHIRServicePrivateApiGatewayMethodWellDashknownSmartDashconfigurationGet
+      - FHIRServicePrivateApiGatewayResourceTenant
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVar
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVarMetadata
+      - FHIRServicePrivateApiGatewayMethodTenantTenantidVarMetadataGet
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknown
+      - FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknownSmartDashconfiguration
+      - FHIRServicePrivateApiGatewayMethodTenantTenantidVarWellDashknownSmartDashconfigurationGet
+      - FHIRServicePrivateApiGatewayResourceProxyVar
+      - FHIRServicePrivateApiGatewayMethodProxyVarAny
+    Properties: 
+      RestApiId: !Ref FHIRServicePrivate
+      #StageName: !Ref Stage
+      Description: !Sub 'Private API Gateway for ${Stage}'
+
+  FHIRServicePrivateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: isUsingPrivateApi
+    Properties:
+      FunctionName: !Join
+        - ':'
+        - - !GetAtt 'FhirServerLambdaFunction.Arn'
+          - provisioned
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join
+        - ''
+        - - 'arn:'
+          - !Ref 'AWS::Partition'
+          - ':execute-api:'
+          - !Ref 'AWS::Region'
+          - ':'
+          - !Ref 'AWS::AccountId'
+          - ':'
+          - !Ref 'FHIRServicePrivate'
+          - /*/*
+    DependsOn: 
+      - FHIRServicePrivate
+      - FhirServerLambdaFunction
+      - FhirServerProvConcLambdaAlias
+  FHIRServicePrivateUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: isUsingPrivateApi
+    DependsOn:
+      - FHIRServiceStageDeployment
+      - FHIRServicePrivateStage
+    Properties: 
+      ApiStages: 
+        - ApiId: !Ref FHIRServicePrivate
+          Stage: !Ref Stage
+      Description: !Join ['', ['Usage plan for ', !Join ['-', [!Ref Stage, fhir, service, private]], ' ', !Ref Stage, ' stage']]
+      #Tags: ${self.provider.stackTags}
+      Throttle:
+        BurstLimit: ${self:provider.usagePlan.throttle.burstLimit}
+        RateLimit: ${self:provider.usagePlan.throttle.rateLimit}
+      UsagePlanName: !Join ['-', [fhir, service, !Ref Stage, private]]
+  
+  FHIRServicePrivateUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: isUsingPrivateApi
+    Properties: 
+      KeyId: !Ref ApiGatewayApiKey1
+      KeyType: API_KEY
+      UsagePlanId: !Ref FHIRServicePrivateUsagePlan
+
+  #####
+  # So, API Gateway's cloneFrom parameter is only available in the create API and not the update API so the public API gateway
+  # and the private API gateway are not automatically kept in sync.
+  # /*
+  FHIRServicePrivateStage:
+    Type: AWS::ApiGateway::Stage
+    Condition: isUsingPrivateApi
+    DependsOn:
+      - FHIRServicePrivate
+      - FhirServerLambdaFunction
+      - FhirServerProvConcLambdaAlias
+      - FHIRServiceStageDeployment
+    Properties:
+      RestApiId: !Ref FHIRServicePrivate
+      StageName: !Ref Stage
+      DeploymentId: !Ref FHIRServiceStageDeployment
+      AccessLogSetting:
+       DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+       Format: ${self:provider.logs.restApi.format}
+      TracingEnabled: ${self:provider.tracing.apiGateway}
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          MetricsEnabled: true
+          LoggingLevel: "OFF"
+          DataTraceEnabled: true
+
+  FHIRServicePrivateApiGatewayMethodAny:
+    Type: AWS::ApiGateway::Method
+    Condition: isUsingPrivateApi
+    Properties:
+      HttpMethod: ANY
+      RequestParameters: {}
+      ResourceId: !GetAtt 'FHIRServicePrivate.RootResourceId'
+      RestApiId: !Ref 'FHIRServicePrivate'
+      ApiKeyRequired: true
+      AuthorizationType: NONE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Join
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':apigateway:'
+            - !Ref 'AWS::Region'
+            - :lambda:path/2015-03-31/functions/
+            - !GetAtt 'FhirServerLambdaFunction.Arn'
+            - ':'
+            - provisioned
+            - /invocations
+      MethodResponses: []
+    DependsOn:
+      - FHIRServicePrivateLambdaPermission
+  
+  # /metadata
+  FHIRServicePrivateApiGatewayResourceMetadata:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
+      PathPart: metadata
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayMethodMetadataGet:
+    Type: AWS::ApiGateway::Method
+    Condition: isUsingPrivateApi
+    Properties:
+      HttpMethod: GET
+      RequestParameters: {}
+      ResourceId: !Ref 'FHIRServicePrivateApiGatewayResourceMetadata'
+      RestApiId: !Ref 'FHIRServicePrivate'
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Join
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':apigateway:'
+            - !Ref 'AWS::Region'
+            - :lambda:path/2015-03-31/functions/
+            - !GetAtt 'FhirServerLambdaFunction.Arn'
+            - ':'
+            - provisioned
+            - /invocations
+      MethodResponses: []
+    DependsOn:
+      - FHIRServicePrivateLambdaPermission
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W45
+            reason: This API endpoint should not require authentication (due to the FHIR spec)
+
+  # /.well-known/*
+  FHIRServicePrivateApiGatewayResourceWellDashknown:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
+      PathPart: .well-known
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayResourceWellDashknownSmartDashconfiguration:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceWellDashknown'
+      PathPart: smart-configuration
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayMethodWellDashknownSmartDashconfigurationGet:
+    Type: AWS::ApiGateway::Method
+    Condition: isUsingPrivateApi
+    Properties:
+      HttpMethod: GET
+      RequestParameters: {}
+      ResourceId: !Ref 'FHIRServicePrivateApiGatewayResourceWellDashknownSmartDashconfiguration'
+      RestApiId: !Ref 'FHIRServicePrivate'
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Join
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':apigateway:'
+            - !Ref 'AWS::Region'
+            - :lambda:path/2015-03-31/functions/
+            - !GetAtt 'FhirServerLambdaFunction.Arn'
+            - ':'
+            - provisioned
+            - /invocations
+      MethodResponses: []
+    DependsOn:
+      - FHIRServicePrivateLambdaPermission
+  
+  # /tenant/*
+  FHIRServicePrivateApiGatewayResourceTenant:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
+      PathPart: tenant
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayResourceTenantTenantidVar:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenant'
+      PathPart: '{tenantId}'
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayResourceTenantTenantidVarMetadata:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVar'
+      PathPart: metadata
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayMethodTenantTenantidVarMetadataGet:
+    Type: AWS::ApiGateway::Method
+    Condition: isUsingPrivateApi
+    Properties:
+      HttpMethod: GET
+      RequestParameters: {}
+      ResourceId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVarMetadata'
+      RestApiId: !Ref 'FHIRServicePrivate'
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Join
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':apigateway:'
+            - !Ref 'AWS::Region'
+            - :lambda:path/2015-03-31/functions/
+            - !GetAtt 'FhirServerLambdaFunction.Arn'
+            - ':'
+            - provisioned
+            - /invocations
+      MethodResponses: []
+    DependsOn:
+      - FHIRServicePrivateLambdaPermission
+  FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknown:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVar'
+      PathPart: .well-known
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknownSmartDashconfiguration:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknown'
+      PathPart: smart-configuration
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayMethodTenantTenantidVarWellDashknownSmartDashconfigurationGet:
+    Type: AWS::ApiGateway::Method
+    Condition: isUsingPrivateApi
+    Properties:
+      HttpMethod: GET
+      RequestParameters: {}
+      ResourceId: !Ref 'FHIRServicePrivateApiGatewayResourceTenantTenantidVarWellDashknownSmartDashconfiguration'
+      RestApiId: !Ref 'FHIRServicePrivate'
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Join
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':apigateway:'
+            - !Ref 'AWS::Region'
+            - :lambda:path/2015-03-31/functions/
+            - !GetAtt 'FhirServerLambdaFunction.Arn'
+            - ':'
+            - provisioned
+            - /invocations
+      MethodResponses: []
+    DependsOn:
+      - FHIRServicePrivateLambdaPermission
+  
+  # /{proxy+}
+  FHIRServicePrivateApiGatewayResourceProxyVar:
+    Type: AWS::ApiGateway::Resource
+    Condition: isUsingPrivateApi
+    Properties:
+      ParentId: !GetAtt 'FHIRServicePrivate.RootResourceId'
+      PathPart: '{proxy+}'
+      RestApiId: !Ref 'FHIRServicePrivate'
+  FHIRServicePrivateApiGatewayMethodProxyVarAny:
+    Type: AWS::ApiGateway::Method
+    Condition: isUsingPrivateApi
+    Properties:
+      HttpMethod: ANY
+      RequestParameters: {}
+      ResourceId: !Ref 'FHIRServicePrivateApiGatewayResourceProxyVar'
+      RestApiId: !Ref 'FHIRServicePrivate'
+      ApiKeyRequired: true
+      AuthorizationType: NONE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Join
+          - ''
+          - - 'arn:'
+            - !Ref 'AWS::Partition'
+            - ':apigateway:'
+            - !Ref 'AWS::Region'
+            - :lambda:path/2015-03-31/functions/
+            - !GetAtt 'FhirServerLambdaFunction.Arn'
+            - ':'
+            - provisioned
+            - /invocations
+      MethodResponses: []
+    DependsOn:
+      - FHIRServicePrivateLambdaPermission
+
+  #####
+
+
+  #####
+  # https://github.com/serverless/serverless/issues/9240
+  # From fwoa 3.x to 4.x new restrictions for the API gateway cloudwatch logs role were added
+  # specifically, https://github.com/awslabs/fhir-works-on-aws-deployment/commit/cc75ff762cf04621778a13f1673f7188d30bf59c
+  # which is good to lock down more but unfortunately serverless+cloudformation fail to orchestrate a successful update
+  # so, we need to manually do the update ourselves by creating a new role for API gateway's cloudwatch logs
+  # and set the serverless configuration to not manage the role and which role to use instead
+  # unfortunately, the cloudformation stack seems to be holding on to the state of the original role so subsequent sls deploys
+  # are still failing. However, we can manually add the policy boundary w/o error. So, we might have to do this by
+  # hand in the deploy and then reenable in serverless.yaml across 2 future deploys.
+  #####
+  ApiGatewayRestApiCloudwatchLogsCustomRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Principal:
+                  Service: 'apigateway.amazonaws.com'
+                Action: 'sts:AssumeRole'
+      Description: "Custom API gateway role for to use with cloudwatch logs"
+      ManagedPolicyArns: 
+        - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
+      RoleName: !Join ['-', ['serverlessApiGatewayCloudWatchRoleCustom', !Ref Stage]]
