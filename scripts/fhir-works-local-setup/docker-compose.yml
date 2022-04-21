@@ -1,0 +1,150 @@
+# version: '3.9'
+
+# services: 
+
+#   opensearch:
+#     container_name: opensearch
+#     image: opensearchproject/opensearch:latest
+#     network_mode: bridge
+#     environment:
+#       - node.name=opensearch-node1
+#       - cluster.name=opensearch-docker-cluster
+#       - discovery.type=single-node
+#       - bootstrap.memory_lock=true
+#       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+#       - "DISABLE_SECURITY_PLUGIN=true"
+#     ports:
+#       - "9200:9200"
+#     ulimits:
+#       memlock:
+#         soft: -1
+#         hard: -1
+#     volumes:
+#       - data01:/usr/share/opensearch/data
+
+#   localstack:
+#     container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
+#     image: localstack/localstack
+#     network_mode: bridge
+#     ports:
+#       - "4566:4566"
+#     depends_on:
+#       - opensearch
+#     environment:
+#       - AWS_DEFAULT_REGION=us-east-1
+#       - OPENSEARCH_CUSTOM_BACKEND=http://opensearch:9200
+#       - DEBUG=1
+#       - DATA_DIR=/tmp/localstack/data
+#       - DOCKER_HOST=unix:///var/run/docker.sock
+#       - HOST_TMP_FOLDER=${TMPDIR}
+#       - LAMBDA_EXECUTOR=docker
+#       - LAMBDA_DOCKER_NETWORK=host
+#       - AWS_ACCESS_KEY_ID=test
+#       - AWS_SECRET_ACCESS_KEY=test
+#       - HOSTNAME_EXTERNAL=localstack
+#     volumes:
+#       - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+#       - "/var/run/docker.sock:/var/run/docker.sock"
+#     links:
+#       - opensearch
+
+# volumes:
+#   data01:
+#     driver: local
+
+# version: "3.9"
+
+# services:
+#   elasticsearch:
+#     container_name: elasticsearch
+#     image: opensearchproject/opensearch:latest
+#     network_mode: bridge
+#     environment:
+#       - node.name=elasticsearch
+#       - cluster.name=es-docker-cluster
+#       - discovery.type=single-node
+#       - bootstrap.memory_lock=true
+#       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#     ports:
+#       - "9200:9200"
+#     ulimits:
+#       memlock:
+#         soft: -1
+#         hard: -1
+#     volumes:
+#       - data01:/usr/share/elasticsearch/data
+
+#   localstack:
+#     container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
+#     image: localstack/localstack
+#     network_mode: bridge
+#     ports:
+#       - "4566:4566"
+#     depends_on:
+#       - elasticsearch
+#     environment:
+#       - ES_CUSTOM_BACKEND=http://elasticsearch:9200
+#       - DEBUG=${DEBUG- }
+#       - DATA_DIR=${DATA_DIR- }
+#       - LAMBDA_EXECUTOR=${LAMBDA_EXECUTOR- }
+#       - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+#       - DOCKER_HOST=unix:///var/run/docker.sock
+#       - HOST_TMP_FOLDER=${TMPDIR}
+#     volumes:
+#       - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+#       - "/var/run/docker.sock:/var/run/docker.sock"
+#     links:
+#       - elasticsearch
+
+# volumes:
+#   data01:
+#     driver: local
+
+
+version: "3.9"
+
+services:
+  opensearch:
+    container_name: opensearch
+    image: opensearchproject/opensearch:latest
+    #network_mode: host
+    environment:
+      - node.name=opensearch
+      - cluster.name=opensearch-docker-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "DISABLE_SECURITY_PLUGIN=true"
+    ports:
+      - "9200:9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/opensearch/data
+
+  localstack:
+    container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
+    image: localstack/localstack
+    #network_mode: host
+    ports:
+      - "4566:4566"
+    depends_on:
+      - opensearch
+    environment:
+      - OPENSEARCH_CUSTOM_BACKEND=http://opensearch:9200
+      - DEBUG=${DEBUG- }
+      - DATA_DIR=${DATA_DIR- }
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST_TMP_FOLDER=${TMPDIR}
+      # - DNS_ADDRESS=127.0.0.1
+    volumes:
+      - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    links:
+      - opensearch
+
+volumes:
+  data01:
+    driver: local

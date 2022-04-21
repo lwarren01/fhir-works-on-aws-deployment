@@ -1,0 +1,19 @@
+{
+    "TableName": "resource-db-dev",
+    "KeySchema": [
+      { "AttributeName": "id", "KeyType": "HASH" },
+      { "AttributeName": "vid", "KeyType": "RANGE" }
+    ],
+    "AttributeDefinitions": [
+      { "AttributeName": "id", "AttributeType": "S" },
+      { "AttributeName": "vid", "AttributeType": "N" }
+    ],
+    "ProvisionedThroughput": {
+      "ReadCapacityUnits": 5,
+      "WriteCapacityUnits": 5
+    },
+    "StreamSpecification": {
+        "StreamEnabled": true,
+        "StreamViewType": "NEW_IMAGE"
+    }
+}
