@@ -12,7 +12,14 @@ Resources:
       - ResourceDynamoDBTableV2
       - ElasticSearchDomain
     Properties:
-      ArtifactS3Location: !Join ['', ['s3://', !Ref SyntheticsBucket, '/', !Join ['', [!Ref Stage, ig, canary]]]]
+      ArtifactS3Location: !Join ['', [
+        's3://',
+        !Ref SyntheticsBucket,
+        '/',
+        'artifacts',
+        '/',
+        !Join ['', [!Ref Stage, ig, canary]]]
+      ]
       Code:
         Handler: 'metadata.handler'
         S3Bucket: !Ref SyntheticsBucket
@@ -27,7 +34,7 @@ Resources:
         TimeoutInSeconds: 90
       RuntimeVersion: 'syn-nodejs-puppeteer-3.4'
       Schedule:
-        Expression: rate(15 minutes)
+        Expression: rate(5 minutes)
       StartCanaryAfterCreation: true
   SyntheticsBucket:
     Type: AWS::S3::Bucket
@@ -40,6 +47,12 @@ Resources:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: aws:kms
               KMSMasterKeyID: !Ref S3KMSKey
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldSyntheticRuns
+            ExpirationInDays: 14
+            Status: 'Enabled'
+            Prefix: 'artifacts'
   SyntheticsRole:
     Type: AWS::IAM::Role
     Properties:
