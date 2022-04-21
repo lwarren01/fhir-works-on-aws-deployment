@@ -51,11 +51,8 @@ Resources:
         Rules:
           - Id: ExpireOldSyntheticRuns
             ExpirationInDays: 14
-            Status: "Enabled"
+            Status: 'Enabled'
             Prefix: 'artifacts'
-            Transitions:
-              - TransitionInDays: 1
-                StorageClass: ONEZONE_IA
   SyntheticsRole:
     Type: AWS::IAM::Role
     Properties:
