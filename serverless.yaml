@@ -37,6 +37,7 @@ custom:
   enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
   enablePrivateAPIGateway: ${env:ENABLE_PRIVATE_API_GATEWAY, 'true'}
   importPrivateAPIGateway: ${env:IMPORT_PRIVATE_API_GATEWAY, 'false'}
+  apiGatewayLogRoleManagedExternally: ${env:API_GATEWAY_LOG_ROLE_MANAGED_EXTERNALLY, 'true'}
   bundle:
     packager: yarn
     linting: false # We use our own linter
@@ -101,7 +102,7 @@ provider:
       format: '{"authorizer.claims.sub":"$context.authorizer.claims.sub","error.message":"$context.error.message","extendedRequestId":"$context.extendedRequestId","httpMethod":"$context.httpMethod","identity.sourceIp":"$context.identity.sourceIp","integration.error":"$context.integration.error","integration.integrationStatus":"$context.integration.integrationStatus","integration.latency":"$context.integration.latency","integration.requestId":"$context.integration.requestId","integration.status":"$context.integration.status","path":"$context.path","requestId":"$context.requestId","responseLatency":"$context.responseLatency","responseLength":"$context.responseLength","stage":"$context.stage","status":"$context.status"}'
       executionLogging: false
       role: !GetAtt ApiGatewayRestApiCloudwatchLogsCustomRole.Arn
-      roleManagedExternally: !If [isImportingPrivateApi, true, false]
+      roleManagedExternally: ${self:custom.apiGatewayLogRoleManagedExternally}
   tracing:
     apiGateway: true
     lambda: true
