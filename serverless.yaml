@@ -37,7 +37,7 @@ custom:
   enableDynamicHostName: ${env:ENABLE_DYNAMIC_HOST_NAME, 'false'}
   enablePrivateAPIGateway: ${env:ENABLE_PRIVATE_API_GATEWAY, 'true'}
   importPrivateAPIGateway: ${env:IMPORT_PRIVATE_API_GATEWAY, 'false'}
-  apiGatewayLogRoleManagedExternally: ${env:API_GATEWAY_LOG_ROLE_MANAGED_EXTERNALLY, 'true'}
+  apiGatewayLogRoleManagedExternally: ${env:API_GATEWAY_LOG_ROLE_MANAGED_EXTERNALLY, 'false'}
   bundle:
     packager: yarn
     linting: false # We use our own linter
