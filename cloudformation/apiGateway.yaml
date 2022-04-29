@@ -399,3 +399,9 @@ Resources:
       ManagedPolicyArns: 
         - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
       RoleName: !Join ['-', ['serverlessApiGatewayCloudWatchRoleCustom', !Ref Stage]]
+
+  # Set CloudWatchRole to API Gateway
+  APIGatewayCloudWatchRole:
+    Type: AWS::ApiGateway::Account
+    Properties: 
+      CloudWatchRoleArn: !GetAtt ApiGatewayRestApiCloudwatchLogsCustomRole.Arn
