@@ -619,7 +619,7 @@ LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
 DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
 ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
 APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
-yarn run serverless-deploy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+yarn run serverless-deploy --enableMultiTenancy true --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
 echo -e "Deployed Successfully.\n"
