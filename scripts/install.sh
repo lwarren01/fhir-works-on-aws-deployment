@@ -31,6 +31,7 @@ function usage(){
     echo "    --apigatewayClientErrorThreshold: API gateway 4xxerror threshold (Default: 5)"
     echo "    --lambdaErrorThreshold: lambda error latency threshold (Default: 1)"
     echo "    --ddbToESLambdaErrorThreshold: DDBToES lambda error threshold (Default: 1)"
+    echo "    --enableMultiTenancy: Is multi-tenancy enabled during fhirworks deployment (Default: false)"
     echo "    --help (-h): Displays this message"
     echo ""
     echo ""
@@ -248,6 +249,7 @@ apigatewayClientErrorThreshold=5
 lambdaErrorThreshold=1
 ddbToESLambdaErrorThreshold=1
 alarmSubscriptionEndpoint="undefined"
+enableMultiTenancy=false
 
 #Parse commandline args
 while [ "$1" != "" ]; do
@@ -290,7 +292,10 @@ while [ "$1" != "" ]; do
                                                     ;;
         --ddbToESLambdaErrorThreshold )             shift
                                                     ddbToESLambdaErrorThreshold=$1
-                                                    ;;                                        
+                                                    ;;          
+        --enableMultiTenancy )                      shift
+                                                    enableMultiTenancy=$1
+                                                    ;;                                 
         -h | --help )                               usage
                                                     exit
                                                     ;;
@@ -361,6 +366,7 @@ echo "  apigatewayClientErrorThreshold: $apigatewayClientErrorThreshold"
 echo "  lambdaErrorThreshold: $lambdaErrorThreshold"
 echo "  ddbToESLambdaErrorThreshold: $ddbToESLambdaErrorThreshold"
 echo "  alarmSubscriptionEndpoint: $alarmSubscriptionEndpoint"
+echo "  enableMultiTenancy: $enableMultiTenancy"
 echo ""
 
 if ! `YesOrNo "Are these settings correct?"`; then
@@ -619,7 +625,7 @@ LAMBDA_ERROR_THRESHOLD=$lambdaErrorThreshold \
 DDB_TO_ES_LAMBDA_ERROR_THRESHOLD=$ddbToESLambdaErrorThreshold \
 ALARM_SUBSCRIPTION_ENDPOINT=$alarmSubscriptionEndpoint \
 APIGATEWAY_METRICS_ENABLED=$apigatewayMetricsEnabled \
-yarn run serverless-deploy --enableMultiTenancy true --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
+yarn run serverless-deploy --enableMultiTenancy $enableMultiTenancy --region $region --stage $stage --issuerEndpoint $issuerEndpoint --oAuth2ApiEndpoint $oAuth2ApiEndpoint --patientPickerEndpoint $patientPickerEndpoint || { echo >&2 "Failed to deploy serverless application."; exit 1; }
 
 ## Output to console and to file Info_Output.log.  tee not used as it removes the output highlighting.
 echo -e "Deployed Successfully.\n"
